@@ -11,7 +11,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 
 | Phase | Title | Status |
 |------:|-------|:------:|
-| 0 | Setup, infra & config | 🟨 |
+| 0 | Setup, infra & config | ✅ |
 | 1 | First endpoint: health ping | ⬜ |
 | 2 | Persistence with JPA | ⬜ |
 | 3 | GitHub GraphQL client | ⬜ |
@@ -24,7 +24,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 10 | Frontend cutover & deployment | ⬜ |
 | 11 | v2-only features (pgvector RAG, email digest) | ⬜ |
 
-**Next up:** Finish Phase 0 (see the 2026-09-27 review in the learning log)
+**Next up:** Phase 1: first endpoint (health ping)
 
 ---
 
@@ -53,7 +53,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 
 ---
 
-## Phase 0: Setup, infra & config 🟨
+## Phase 0: Setup, infra & config ✅
 
 **Concepts:** Spring Boot auto-configuration, starters, `application.yml`, profiles, externalized config, Docker Compose.
 
@@ -67,9 +67,9 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 
 **Done when**
 - [x] Spring Boot / Spring AI versions are compatible
-- [ ] Postgres (Neon) + Redis (remote) reachable from the app
-- [ ] `./mvnw spring-boot:run` starts cleanly
-- [ ] Config values come from env vars through a typed `@ConfigurationProperties` record
+- [x] Postgres (Neon) + Redis (remote) reachable from the app
+- [x] `./mvnw spring-boot:run` starts cleanly
+- [x] Config values come from env vars through a typed `@ConfigurationProperties` record
 
 ---
 
@@ -297,9 +297,20 @@ Add an entry at the end of each session: what was built, what was learned, open 
 - ✅ `application.yml` with `${ENV}` placeholders, `@ConfigurationPropertiesScan` enabled, `@Validated` properties class.
 - ✅ Chose remote Neon Postgres + remote Redis (TLS) over local Docker Compose.
 - ❌ Blockers found:
-  - `insightshub:` is nested under `spring:` in the yml, so the actual prefix is `spring.insightshub`.
-  - `InsightsHubProperties` has package-private fields with no setters or constructor, so nothing binds (use a `record`).
-  - ~~Spring Boot doesn't read `.env`~~ → added `spring-dotenv` 4.0.0.
-  - ~~`.env` not in `.gitignore`~~ → fixed. Still need `git init`.
-  - No `spring.ai.openai.*` config. The OpenAI auto-config will likely fail at startup.
+  - ~~`insightshub:` nested under `spring:`~~ → fixed, now top level.
+  - ~~`InsightsHubProperties` can't bind~~ → converted to a record.
+  - ~~`.env` not loaded~~: `spring-dotenv` 4.0.0 (2023) is built for Boot 3. In Boot 4, `ConfigurableBootstrapContext` moved to `org.springframework.boot.bootstrap`, so the library's run listener never fires. The DB login used the literal `${DB_USER}`. Fix: built-in `spring.config.import: optional:file:.env[.properties]`.
+  - ✅ Removed `spring-dotenv`, added `spring.config.import: optional:file:.env[.properties]`, restored `.env`. DB connects (Neon, Postgres 17.11).
+  - ~~`.env` not in `.gitignore`~~ → fixed. Repo initialized; first commit `1e5306a`, `.env` not tracked.
+  - ✅ ~~OpenAI auto-config~~ → Groq key + model configured; unused models switched off with `spring.ai.model.{audio.speech,audio.transcription,image,moderation}: none`. Was: `OpenAiAudioSpeechAutoConfiguration` fails with "At least one credential source must be specified". The OpenAI starter auto-configures chat, embedding, image, audio speech, audio transcription and moderation models, and each needs a key. Fix: Groq key + base URL, and turn off unused models with `spring.ai.model.<type>=none` (and `spring.ai.vectorstore.type=none` until Phase 11).
 - Decision: use the production Neon DB + remote Redis for dev. Only the owner's data exists, so `ddl-auto: update` is acceptable.
+- ✅ `@Validated` caught 4 blank `insightshub.*` values at startup (empty in `.env`), so fail-fast validation works.
+
+### 2026-09-27: Phase 0 complete ✅
+- The app starts: Neon Postgres + remote Redis connect, `.env` loads through `spring.config.import`, and `InsightsHubProperties` binds and validates.
+- Spring AI: Groq as the OpenAI-compatible chat provider. Speech, transcription, image and moderation are turned off with `spring.ai.model.*: none` (replaced an earlier `spring.autoconfigure.exclude` list, since the switches survive class renames).
+- Learned: starters switch features on and properties or excludes switch them off; `@Validated` fails fast; Boot 3 libraries can silently break on Boot 4 (spring-dotenv); the real cause is at the first `WARN`/`Caused by`, not the last stack trace.
+- ⚠️ Carry-over to Phase 5: `base-url` must be `https://api.groq.com/openai/v1`. Probed without a key: `/openai/v1/chat/completions` returns 401 (exists), while `/openai/chat/completions` and `/v1/openai/chat/completions` return 404.
+- Embedding model + pgvector store turned off (`spring.ai.model.embedding: none`, `spring.ai.vectorstore.type: none`). Turn them back on in Phase 11 with a real embedding provider.
+- 🐛 Found while turning off embeddings: `vectorstore.type: none` was indented under `spring.ai.model`, so it became `spring.ai.model.vectorstore.type`, a key nothing reads. With `embedding: none` in effect, pgvector still loaded and failed: "PgVectorStoreAutoConfiguration required a bean of type EmbeddingModel". The correct key is `spring.ai.vectorstore.type`. Lesson: an unknown key is silently ignored, not flagged.
+- ✅ Fixed: `vectorstore` moved up to `spring.ai.vectorstore.type`. The app starts cleanly again.
