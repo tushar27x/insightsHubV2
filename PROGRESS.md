@@ -36,8 +36,8 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 |------:|-------|:------:|
 | | **Part A: Port v1** | |
 | 0 | Setup, infra & config | ✅ |
-| 1 | First endpoint: health ping | ⬜ |
-| 2 | Data model for v2 (JPA) | ⬜ |
+| 1 | First endpoint: health ping | ✅ |
+| 2 | Data model for v2 (JPA) | 🟨 |
 | 3 | GitHub GraphQL client | ⬜ |
 | 4 | Insights engine (pure Java + first tests) | ⬜ |
 | 5 | AI layer with Spring AI | ⬜ |
@@ -55,7 +55,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | ⬜ |
 
-**Next up:** Phase 1: first endpoint (health ping)
+**Next up:** Phase 2: data model for v2 (start with the separate schema decision)
 
 ---
 
@@ -106,7 +106,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 1: First endpoint: health ping ⬜
+## Phase 1: First endpoint: health ping ✅
 
 **v1 reference:** `routes.py` → `GET /api/` (sets and gets a Redis key, runs `SELECT 1`)
 
@@ -119,12 +119,12 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 4. Afterwards, look at `/actuator/health`. It already checks DB and Redis. That's the "Spring way" to do what v1's ping did.
 
 **Done when**
-- [ ] `GET /api/` returns `{"redis":"pong","postgres":1}`
-- [ ] You can explain what a bean is and who creates your controller
+- [x] `GET /ping` returned `{"redis":"pong","jdbc":1}`, then replaced by `/actuator/health` with details
+- [x] You can explain what a bean is and who creates your controller
 
 ---
 
-## Phase 2: Data model for v2 (JPA) ⬜
+## Phase 2: Data model for v2 (JPA) 🟨
 
 **v1 reference:** `models/user.py`, `db/postgres.py`. v2 needs more than v1's two tables, because habits need **history** (v1 overwrote `stats_json` on every sync) and rankings need **scores**.
 
@@ -471,3 +471,38 @@ Add an entry at the end of each session: what was built, what was learned, open 
 - Roadmap restructured into Part A (port, phases 1–9), Part B (new features, phases 10–13), Part C (ship, phase 14) and stretch goals.
 - Consequences for the port: Phase 2 now designs history and score tables up front; Phase 3 fetches commit SHAs/dates and logs `rateLimit`; Phase 6 adds the `user:email` scope and stores the GitHub token encrypted; Phase 7's `SyncService` must work without an HTTP request.
 - ⚠️ v1 is still live on the same Neon DB, so v2 should use its own schema/tables.
+
+### 2026-10-01: Phase 1 started
+- Roadmap committed (`9ce8ed3`). Working tree clean.
+- `HealthController` written (package `health`, Lombok `@RequiredArgsConstructor`, `StringRedisTemplate` + `JdbcTemplate`, record response) at `GET /ping`.
+- 🐛 First request failed: `Cannot parse port number: https://pure-titmouse-69745.upstash.io"`. `REDIS_HOST` in `.env` held Upstash's **REST URL** (with `https://`) plus a stray trailing `"`. Spring Data Redis (Lettuce) speaks the Redis TCP protocol, so it needs the bare hostname (port 6379, TLS on).
+- Lesson: the bad value had been there since Phase 0, but startup passed because **Redis connects lazily** (on the first command), while Hibernate connects to Postgres eagerly at startup to read DB metadata.
+- ✅ Fixed `REDIS_HOST` (bare Upstash hostname). `GET /ping` → `{"redis":"pong","jdbc":1}`; `/actuator/health` → `UP` (details hidden by default).
+- Q: "Doesn't Actuator already have a health check?" Yes. `/actuator/health` aggregates `HealthIndicator` beans (`db`, `redis`, `diskSpace`, `ping`...), auto-registered from the starters. A hand-rolled ping is only useful as a learning exercise or to demo a custom read/write round trip.
+- Remaining for Phase 1: rename `jdbc` → `postgres`, make the response record public (or its own file), pick the `/api` prefix strategy, show health details.
+- ✅ Enabled `management.endpoint.health.show-details: always`. `/actuator/health` → `db`, `redis`, `diskSpace`, `ping`, `ssl`, `livenessState`, `readinessState` all `UP`.
+- Decision: deleted `HealthController`; Actuator is the health check. (Switch `show-details` to `when-authorized` in Phase 6.)
+- Carried to Phase 6: the `/api` prefix decision (`server.servlet.context-path` vs a controller prefix).
+
+### 2026-10-01: Phase 1 complete ✅ → Phase 2 started
+- Schema review #1 (users ↔ insights sketch). Fixes: `user` is a reserved word in Postgres → `users`; flip the 1:1 so `insights.user_id` is PK + FK (`@MapsId`), not `users.insight_id`; don't store `global_rank` (it depends on other rows, so derive it in Phase 13); archetype as a `varchar` + CHECK on `insights` (computed data), not an FK on `users`; drop weekly/monthly (decision = daily digest); add `login`, `encrypted_github_token`, `needs_reauth`, `no_commit_days`, `public_profile`, timestamps; split `insights` JSON into `stats jsonb` plus text columns for the AI reviews.
+- ✅ Flyway added (`spring-boot-starter-flyway` + `flyway-database-postgresql`; Boot 4 needs its own starter). Config: `spring.flyway.schemas/default-schema: v2`, `hibernate.default_schema: v2`, `ddl-auto: validate`.
+- ✅ `V1__users_and_insights.sql` applied to Neon: created schema `v2`, `v2.flyway_schema_history`, `v2.users`, `v2.insights`. v1's `public` schema untouched. Worked through the Neon pooler endpoint.
+- Archetype names are now fixed by the CHECK constraint: `BUG_HUNTER, OPEN_SOURCE_HERO, SOFTWARE_ARCHITECT, WEEKEND_WARRIOR, CODE_CRUSADER`. The Java enum (Phase 4) must use exactly these names.
+- Next: `User` + `Insights` entities and repositories (Phase 2, step 4).
+- Review of `enity/Users.java`: it compiles, but startup fails validation: `wrong column type ... [github_id]; found [int8 (BIGINT)], but expecting [numeric(38,0)]`. `BigInteger` maps to NUMERIC; BIGINT needs `Long`. Also: no no-arg constructor (JPA requires one), snake_case Java fields (break Spring Data derived queries, where `_` means nested property), `java.sql.Timestamp` → `Instant`, null `Boolean`s vs NOT NULL (a DB DEFAULT only applies when the column is omitted from the INSERT, and Hibernate always sends every column), `@Column(name="githubId")` only works because Boot's `CamelCaseToUnderscoresNamingStrategy` rewrites explicit names too, `enity` typo, class should be singular `User`, no getters.
+- ✅ `Users` entity passes `ddl-auto: validate` (`Long` id, `Instant`, correct column names, protected no-arg constructor). App starts.
+- Still open: `alerts_enabled` field still snake_case; `publicProfile`/`needsReauth` have no Java default, so an INSERT will send NULL and violate NOT NULL; no public constructor or getters, so app code can't create or read a user; `enity` → `entity`, `Users` → `User`.
+- Review #3 of `entity/Users.java`: package renamed ✅, flags now primitives so the NOT NULL issue is fixed ✅, `@Getter` ✅. Open: no public `(githubId, login)` constructor, so app code can't create users; no setters on `encryptedGithubToken`/`needsReauth`/`publicProfile` (needed in Phases 6/10/12); class still `Users`. Rule noted: never return entities from controllers, since `@Getter` would leak the encrypted token through Jackson; use DTOs.
+- Review #4: all setters ✅, `int noCommitDays` ✅. 🐛 `public void User(Long, String)` is a **method**, not a constructor: it has a return type and the class is still named `Users`. Java allows methods with a class-like name, so it compiles silently.
+- ✅ `Users` entity done: real public `(githubId, login)` constructor, protected no-arg constructor for JPA, getters, setters on mutable fields, primitive flags, validates against `v2.users`. (Class kept as `Users`.)
+- Next: `UserRepository`, `Archetype` enum, `Insights` entity with `@MapsId`.
+- Review: `Archetype`, `Insights`, `UsersRepository`. Startup fails at repository creation: `No property 'existsUser' found for type 'Users'`. Derived queries must follow `existsBy<Property>`; `existsById` is inherited anyway, as is `findById`. Schema validation of both entities **passed** (the EntityManagerFactory is built before repositories). So Hibernate 7 accepts `text` columns for plain `String` fields, and the earlier "columnDefinition = text is needed" claim was wrong: it's optional, just documentation.
+- Open in `Insights`: `stats` and `updatedAt` are null on a new object but NOT NULL in the DB; no constructor taking `Users`; no setters for `stats`/`archetype`; public no-arg constructor; `userId` not private; unused `java.sql.SQLType` import. `""` defaults hide "not generated yet". No `InsightsRepository` yet.
+- `findByNeedsReauthFalseAndLastSyncedAtBefore` skips never-synced users (NULL < cutoff is not true in SQL). Adding `Or...IsNull` binds wrong (OR has lower precedence), so use `@Query` (JPQL) in Phase 10.
+- ✅ Review fixes applied:
+  - `UsersRepository`: removed `existsUser`/`findById`; replaced the sync query with `@Query findDueForSync(cutoff)` (`needsReauth = false and (lastSyncedAt is null or lastSyncedAt < :cutoff)`).
+  - `Insights`: protected no-arg + `Insights(Users)` constructor, `stats = new HashMap<>()`, `@UpdateTimestamp updatedAt`, setters for stats/archetype/AI texts, AI texts null by default, `private userId`, `@Table`.
+  - `Archetype`: `name` → `slug`.
+  - Added `InsightsRepository`.
+- ✅ The app starts: both entities validate, and the JPQL query parses at startup. Not yet verified: an actual save/read round trip (step 5).
