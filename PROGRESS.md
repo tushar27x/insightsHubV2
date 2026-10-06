@@ -55,7 +55,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | ⬜ |
 
-**Next up:** Phase 2: data model for v2 (start with the separate schema decision)
+**Next up:** Phase 2 step 6: `V2__activity.sql` (`daily_contributions` composite key, `commits` unique `sha`)
 
 ---
 
@@ -152,7 +152,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 **Done when**
 - [ ] All tables exist in v2's own schema (via Flyway or entities), and v1's tables are untouched
-- [ ] Repositories exist and `findById` works for `users`
+- [x] Repositories exist and `findById` works for `users`
 - [ ] Inserting the same `(user_id, date)` or commit `sha` twice is impossible at the DB level
 
 ---
@@ -506,3 +506,18 @@ Add an entry at the end of each session: what was built, what was learned, open 
   - `Archetype`: `name` → `slug`.
   - Added `InsightsRepository`.
 - ✅ The app starts: both entities validate, and the JPQL query parses at startup. Not yet verified: an actual save/read round trip (step 5).
+- 🐛 IntelliJ showed `Cannot resolve symbol 'log'` / `getGithubId` while `./mvnw compile` passed. Cause: the Arch `intellij-idea-community-edition` package (build IC-262.10315.125) doesn't bundle the Lombok plugin. Annotation processing settings were already correct. Fixed by installing the official JetBrains Lombok plugin (262.8665.176, compatible with `262.*`) into `~/.local/share/JetBrains/IdeaIC2026.2/lombok/`. Needs an IDE restart.
+- Lesson: IDE errors + green Maven build = IDE setup issue, not code.
+- ✅ Round trip, run 1 (`dev` profile): user + insights saved to `v2`. `insights.userId = 100276134` without setting it (`@MapsId` works); `stats` jsonb round-tripped; archetype stored as `CODE_CRUSADER`.
+- `createdAt=null` after `save()`: the DB filled it (`DEFAULT now()`), but Hibernate never reads back columns it didn't write (`insertable=false`).
+- 💥 `LazyInitializationException: Could not initialize proxy [Users#100276134] - no session` on `loaded.getUser().getLogin()`. `findById` runs in its own transaction; `user` is a LAZY proxy, and the session closed when the repository call returned. Fixes: a transaction around the whole unit of work (service-layer `@Transactional`, Phase 7), a fetch join / `@EntityGraph`, or load the user via its own repository.
+- Noted the startup WARN about `spring.jpa.open-in-view`: OSIV keeps the session open for the whole web request, which would *hide* this exact bug in controllers. Plan: set it to `false`.
+- Changes: `@Generated(event = INSERT)` on `Users.createdAt`; `@EntityGraph(attributePaths = "user")` override of `InsightsRepository.findById`.
+- Run 2 (data from run 1 still present):
+  - `usersRepository.save(new Users(id, login))` did **not** fail. The id is non-null, so Spring Data treats the entity as existing and calls `merge` (SELECT + UPDATE). ⚠️ The merge copies *every* field from the new object, so it silently resets the existing user's preferences (`alertsEnabled`, `noCommitDays`, `publicProfile`...) to defaults. Rule for Phase 6: for existing users, load and then update. Never `save(new Users(...))`.
+  - `createdAt` still null: it was an UPDATE, so the INSERT-generated value isn't re-read, and merge copied our null onto the loaded object.
+  - `insightsRepository.save(new Insights(user))` → `duplicate key ... insights_pkey`. Its `@Id` is null before `@MapsId` fills it, so `isNew()` is true → `persist` → INSERT → conflict.
+  - The `@EntityGraph` line wasn't reached, so it's not verified yet.
+- ✅ `spring.jpa.open-in-view: false` (startup warning gone).
+- Runner: user is now find-or-create → `createdAt=2026-10-06T03:57:12Z` (loaded from the DB). Insights is still `new Insights(user)` every run → same `insights_pkey` duplicate. Needs find-or-create too (`findById(id).orElseGet(() -> new Insights(user))`, then set fields and save, which becomes an UPDATE for an existing row).
+- ✅ Step 5 done. The runner is idempotent (find-or-create for both user and insights). Run 3: no errors, `createdAt` populated, `Insights belong to tushar27x` (the `@EntityGraph` fetch removes the LazyInitializationException). Runner kept behind `@Profile("dev")`.
