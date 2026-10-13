@@ -23,6 +23,7 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 | [B16](#b16) | 2 | `createdAt` null right after `save()` | Code |
 | [B17](#b17) | 2 | `LazyInitializationException ... no session` | Code |
 | [B18](#b18) | 2 | `save(new Entity(existingId))`: silent overwrite for `Users`, duplicate key for `Insights` | Code |
+| [B19](#b19) | 3 | `RestClient.Builder` auto-config only present via the Spring AI starter | Dependency |
 
 ---
 
@@ -136,3 +137,10 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Root cause:** Spring Data's `save()` decides "new" by the id. `Users` had its id set → `merge`; `Insights` had a null id until `@MapsId` filled it → `persist` → INSERT.
 - **Fix:** find-or-create (`findById(id).orElseGet(...)`), then modify and save.
 - **Lesson:** for existing rows, always load and then update. Never `save(new Entity(existingId))`.
+
+### B19
+**`RestClient.Builder` auto-config only present through the Spring AI starter** · Phase 3 · Dependency (latent, no failure yet)
+- **Found by:** `./mvnw dependency:tree` while building the GitHub client. `spring-boot-restclient` (which auto-configures `RestClient.Builder` in Boot 4) came in only via `spring-ai-starter-model-openai → spring-boot-starter-restclient`.
+- **Risk:** removing or changing the AI starter would make startup fail with "no bean of type `RestClient.Builder`" in code unrelated to AI.
+- **Fix:** declared `spring-boot-starter-restclient` directly in `pom.xml`.
+- **Lesson:** Boot 4 splits auto-config into modules. Declare a starter for every feature you use directly; don't rely on transitive ones.
