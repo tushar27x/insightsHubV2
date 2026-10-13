@@ -52,7 +52,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 2.6 | `V3__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
-| 5 | AI layer with Spring AI | 🤖 | 👀 in review | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
+| 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ⬜ | |
 | 7 | Sync orchestration & Redis caching | 🤖 | ⬜ | |
 | 8 | Rate limiting | 🤖 | ⬜ | |
@@ -67,7 +67,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 Phase 5 in review, then Phase 6 (Auth) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
+**Next up:** 🤖 Phase 6 (Auth) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
 
 ---
 
@@ -223,7 +223,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 5: AI layer with Spring AI ⭐ 👀
+## Phase 5: AI layer with Spring AI ⭐ ✅
 
 **v1 reference:** `services/ai_service.py`
 
@@ -296,6 +296,11 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 4. The migration for this phase adds the character-sheet columns and renames `insights.roast` to `year_in_review` (Phase 5 replaced the roast). Rename the `Insights` entity field to match.
 5. `@CacheEvict(value="user_insights", key="#userId")` on the sync's persist step replaces v1's manual `redis.delete`.
 6. v1 swallows sync errors so login still works. Keep that behavior, but log properly.
+7. **Phase 5 follow-ups** (these calls start running for real users here):
+   - The 90 s AI task timeout stops waiting but doesn't cancel the HTTP call (worst case about 2 × 30 s per provider). Cancel it, or make the timeouts add up to less than the task timeout.
+   - Log token usage per call (`.call().chatResponse()` metadata instead of `.content()`), since Phase 10 syncs everyone daily.
+   - Mark commit messages as untrusted data in `craft-review.st`, like READMEs already are.
+   - Gemini fallback is untested against the real endpoint: needs `GEMINI_API_KEY` (and maybe `GEMINI_MODEL`).
 
 **Done when**
 - [ ] Second `GET /user/insights` is served from Redis (check with `redis-cli KEYS *`)
@@ -531,3 +536,7 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Tests: 9 chain + 14 reviewer + 4 parallel-service (with a recording `FakeChatModel`, so the real `ChatClient` path runs), plus opt-in `AiLiveTest` (needs `GROQ_API_KEY`).
 - Bug log: B25–B28.
 - Developer's review: drop the roast. The habit tracker needs encouragement, so the persona became a supportive senior engineer and the roast became a year in review. Checked live: each review names real strengths and ends with one concrete step.
+- PR #4 merged (`ce232bd`). Phase 5 follow-ups are listed in the Phase 7 hints.
+- Open questions for the developer:
+  - Archetype calibration: should Monk need small PRs as well as descriptive messages? Should zero activity stay Rogue?
+  - v1 production still calls the retired Groq models (B26). Fix v1 (two model names in `ai_service.py`), or leave it until v2 replaces it?
