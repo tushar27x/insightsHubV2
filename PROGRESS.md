@@ -28,34 +28,45 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | RAG "Ask your Manager" (pgvector) | Stretch goal. pgvector starter stays in the pom, switched off |
 | Database | Production Neon DB + remote Redis for dev (only the owner's data exists) |
 
+**Workflow (2026-10-13)**
+| Topic | Decision |
+|---|---|
+| Port (phases 3–9) | Implemented by Claude, **one PR per phase** against `main`, reviewed and merged by the developer |
+| v2 features (2.6, 10–13) | Implemented by the developer; Claude reviews and gives hints |
+| Attribution | No Claude co-author lines in commits, no Claude footer in PR descriptions |
+| Bugs | Every bug is logged in [`BUGS.md`](BUGS.md); PR descriptions list the bugs found in that phase; the developer is kept informed while debugging |
+
 ---
 
 ## Current status
 
-| Phase | Title | Status |
-|------:|-------|:------:|
-| | **Part A: Port v1** | |
-| 0 | Setup, infra & config | ✅ |
-| 1 | First endpoint: health ping | ✅ |
-| 2 | Data model for v2 (JPA) | 🟨 |
-| 3 | GitHub GraphQL client | ⬜ |
-| 4 | Insights engine (pure Java + first tests) | ⬜ |
-| 5 | AI layer with Spring AI | ⬜ |
-| 6 | Auth: GitHub OAuth + JWT, stored token & email | ⬜ |
-| 7 | Sync orchestration & Redis caching | ⬜ |
-| 8 | Rate limiting | ⬜ |
-| 9 | Errors, validation, logging | ⬜ |
-| | **Part B: New v2 features** | |
-| 10 | Scheduled daily sync & activity history | ⬜ |
-| 11 | Habit engine (3 rules) | ⬜ |
-| 12 | Notifications: daily digest email | ⬜ |
-| 13 | Archetype scoring & leaderboards | ⬜ |
-| | **Part C: Ship it** | |
-| 14 | Testing, API docs & deployment | ⬜ |
-| | **Stretch** | |
-| S | RAG chat, Discord alerts, friends leaderboard, observability | ⬜ |
+**Owner:** 🤖 Claude implements and opens a PR for review · 🧑 developer implements, Claude reviews
 
-**Next up:** Phase 2 step 6: `V2__activity.sql` (`daily_contributions` composite key, `commits` unique `sha`)
+| Phase | Title | Owner | Status | PR |
+|------:|-------|:-----:|:------:|:--:|
+| | **Part A: Port v1** | | | |
+| 0 | Setup, infra & config | 🧑 | ✅ | |
+| 1 | First endpoint: health ping | 🧑 | ✅ | |
+| 2 | Data model for v2 (JPA), steps 1–5 | 🧑 | ✅ | |
+| 2.6 | `V2__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
+| 3 | GitHub GraphQL client | 🤖 | ⬜ | |
+| 4 | Insights engine (pure Java + first tests) | 🤖 | ⬜ | |
+| 5 | AI layer with Spring AI | 🤖 | ⬜ | |
+| 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ⬜ | |
+| 7 | Sync orchestration & Redis caching | 🤖 | ⬜ | |
+| 8 | Rate limiting | 🤖 | ⬜ | |
+| 9 | Errors, validation, logging | 🤖 | ⬜ | |
+| | **Part B: New v2 features** | | | |
+| 10 | Scheduled daily sync & activity history | 🧑 | ⬜ | |
+| 11 | Habit engine (3 rules) | 🧑 | ⬜ | |
+| 12 | Notifications: daily digest email | 🧑 | ⬜ | |
+| 13 | Archetype scoring & leaderboards | 🧑 | ⬜ | |
+| | **Part C: Ship it** | | | |
+| 14 | Testing, API docs & deployment | TBD | ⬜ | |
+| | **Stretch** | | | |
+| S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
+
+**Next up:** 🤖 Phase 3 (GitHub GraphQL client) · 🧑 Phase 2.6 (`V2__activity.sql`), independent of each other
 
 ---
 
@@ -434,90 +445,36 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ## Learning log
 
-Add an entry at the end of each session: what was built, what was learned, open questions.
+One entry per session: what was built, what was learned, open questions. Bug details live in [`BUGS.md`](BUGS.md) (B-numbers).
 
 ### 2026-09-27: Kickoff
-- Scanned the v1 backend (`~/dev/insight_hub/server`) and the v2 skeleton.
-- Created the roadmap (this file) and `.claude/CLAUDE.md`.
-- Open question: Spring AI version vs Boot 4 compatibility (Phase 0, hint 1).
-- Open question: share the v1 database or start fresh?
-
-### 2026-09-27: Phase 0 review
-- ✅ Bumped Spring AI to 2.0.0 (Boot 4 compatible). `./mvnw compile` passes.
-- ✅ `application.yml` with `${ENV}` placeholders, `@ConfigurationPropertiesScan` enabled, `@Validated` properties class.
-- ✅ Chose remote Neon Postgres + remote Redis (TLS) over local Docker Compose.
-- ❌ Blockers found:
-  - ~~`insightshub:` nested under `spring:`~~ → fixed, now top level.
-  - ~~`InsightsHubProperties` can't bind~~ → converted to a record.
-  - ~~`.env` not loaded~~: `spring-dotenv` 4.0.0 (2023) is built for Boot 3. In Boot 4, `ConfigurableBootstrapContext` moved to `org.springframework.boot.bootstrap`, so the library's run listener never fires. The DB login used the literal `${DB_USER}`. Fix: built-in `spring.config.import: optional:file:.env[.properties]`.
-  - ✅ Removed `spring-dotenv`, added `spring.config.import: optional:file:.env[.properties]`, restored `.env`. DB connects (Neon, Postgres 17.11).
-  - ~~`.env` not in `.gitignore`~~ → fixed. Repo initialized; first commit `1e5306a`, `.env` not tracked.
-  - ✅ ~~OpenAI auto-config~~ → Groq key + model configured; unused models switched off with `spring.ai.model.{audio.speech,audio.transcription,image,moderation}: none`. Was: `OpenAiAudioSpeechAutoConfiguration` fails with "At least one credential source must be specified". The OpenAI starter auto-configures chat, embedding, image, audio speech, audio transcription and moderation models, and each needs a key. Fix: Groq key + base URL, and turn off unused models with `spring.ai.model.<type>=none` (and `spring.ai.vectorstore.type=none` until Phase 11).
-- Decision: use the production Neon DB + remote Redis for dev. Only the owner's data exists, so `ddl-auto: update` is acceptable.
-- ✅ `@Validated` caught 4 blank `insightshub.*` values at startup (empty in `.env`), so fail-fast validation works.
+- Scanned the v1 backend (`~/dev/insight_hub/server`) and the v2 skeleton; created this roadmap and `.claude/CLAUDE.md`.
 
 ### 2026-09-27: Phase 0 complete ✅
-- The app starts: Neon Postgres + remote Redis connect, `.env` loads through `spring.config.import`, and `InsightsHubProperties` binds and validates.
-- Spring AI: Groq as the OpenAI-compatible chat provider. Speech, transcription, image and moderation are turned off with `spring.ai.model.*: none` (replaced an earlier `spring.autoconfigure.exclude` list, since the switches survive class renames).
-- Learned: starters switch features on and properties or excludes switch them off; `@Validated` fails fast; Boot 3 libraries can silently break on Boot 4 (spring-dotenv); the real cause is at the first `WARN`/`Caused by`, not the last stack trace.
-- ✅ ~~Carry-over to Phase 5: `base-url` must be `https://api.groq.com/openai/v1`~~ → fixed. Probed without a key: `/openai/v1/chat/completions` returns 401 (exists), while `/openai/chat/completions` and `/v1/openai/chat/completions` return 404.
-- Embedding model + pgvector store turned off (`spring.ai.model.embedding: none`, `spring.ai.vectorstore.type: none`). Turn them back on for stretch goal S1 with a real embedding provider.
-- 🐛 Found while turning off embeddings: `vectorstore.type: none` was indented under `spring.ai.model`, so it became `spring.ai.model.vectorstore.type`, a key nothing reads. With `embedding: none` in effect, pgvector still loaded and failed: "PgVectorStoreAutoConfiguration required a bean of type EmbeddingModel". The correct key is `spring.ai.vectorstore.type`. Lesson: an unknown key is silently ignored, not flagged.
-- ✅ Fixed: `vectorstore` moved up to `spring.ai.vectorstore.type`. The app starts cleanly again. Committed as `89f50dc`.
+- Spring AI 2.0.0 on Boot 4 (B1). `.env` loaded with `spring.config.import` (B4). `@Validated` record `InsightsHubProperties` (B2, B3) fails fast on blank values. `.gitignore` covers secrets (B5).
+- Groq as an OpenAI-compatible chat provider at `https://api.groq.com/openai/v1` (B8). Unused OpenAI models, embeddings and pgvector off via `spring.ai.model.*: none` / `spring.ai.vectorstore.type: none` (B6, B7).
+- Decision: production Neon DB + remote Redis for dev (only the owner's data exists).
+- Learned: starters switch features on, properties switch them off; unknown YAML keys are silently ignored; the real cause is at the first `WARN`/`Caused by`.
 
 ### 2026-10-01: Scope change: v2 features defined
-- v2 = port + **habit tracker** + **daily digest alerts** + **archetype ranking**. Backend-only; RAG becomes a stretch goal.
-- Habits: streak broken, no commits for N days, lazy commit messages. Delivery: daily digest email.
-- Roadmap restructured into Part A (port, phases 1–9), Part B (new features, phases 10–13), Part C (ship, phase 14) and stretch goals.
-- Consequences for the port: Phase 2 now designs history and score tables up front; Phase 3 fetches commit SHAs/dates and logs `rateLimit`; Phase 6 adds the `user:email` scope and stores the GitHub token encrypted; Phase 7's `SyncService` must work without an HTTP request.
-- ⚠️ v1 is still live on the same Neon DB, so v2 should use its own schema/tables.
+- v2 = port + habit tracker + daily digest alerts + archetype ranking; backend-only; RAG is a stretch goal. See "Scope & decisions".
+- Consequences for the port: Phase 3 fetches commit SHAs/dates and logs `rateLimit`; Phase 6 adds `user:email` and stores the GitHub token encrypted; Phase 7's `SyncService` must work without an HTTP request. v1 is still live on the same Neon DB, so v2 uses its own schema.
 
-### 2026-10-01: Phase 1 started
-- Roadmap committed (`9ce8ed3`). Working tree clean.
-- `HealthController` written (package `health`, Lombok `@RequiredArgsConstructor`, `StringRedisTemplate` + `JdbcTemplate`, record response) at `GET /ping`.
-- 🐛 First request failed: `Cannot parse port number: https://pure-titmouse-69745.upstash.io"`. `REDIS_HOST` in `.env` held Upstash's **REST URL** (with `https://`) plus a stray trailing `"`. Spring Data Redis (Lettuce) speaks the Redis TCP protocol, so it needs the bare hostname (port 6379, TLS on).
-- Lesson: the bad value had been there since Phase 0, but startup passed because **Redis connects lazily** (on the first command), while Hibernate connects to Postgres eagerly at startup to read DB metadata.
-- ✅ Fixed `REDIS_HOST` (bare Upstash hostname). `GET /ping` → `{"redis":"pong","jdbc":1}`; `/actuator/health` → `UP` (details hidden by default).
-- Q: "Doesn't Actuator already have a health check?" Yes. `/actuator/health` aggregates `HealthIndicator` beans (`db`, `redis`, `diskSpace`, `ping`...), auto-registered from the starters. A hand-rolled ping is only useful as a learning exercise or to demo a custom read/write round trip.
-- Remaining for Phase 1: rename `jdbc` → `postgres`, make the response record public (or its own file), pick the `/api` prefix strategy, show health details.
-- ✅ Enabled `management.endpoint.health.show-details: always`. `/actuator/health` → `db`, `redis`, `diskSpace`, `ping`, `ssl`, `livenessState`, `readinessState` all `UP`.
-- Decision: deleted `HealthController`; Actuator is the health check. (Switch `show-details` to `when-authorized` in Phase 6.)
-- Carried to Phase 6: the `/api` prefix decision (`server.servlet.context-path` vs a controller prefix).
+### 2026-10-01: Phase 1 complete ✅
+- Built `/ping` (constructor injection, `StringRedisTemplate` + `JdbcTemplate`), then replaced it with `/actuator/health` + `show-details: always` (switch to `when-authorized` in Phase 6). Redis host fixed (B9).
+- Learned: Actuator aggregates `HealthIndicator` beans from each starter; Redis connects lazily, Postgres eagerly.
+- Carried to Phase 6: the `/api` prefix decision.
 
-### 2026-10-01: Phase 1 complete ✅ → Phase 2 started
-- Schema review #1 (users ↔ insights sketch). Fixes: `user` is a reserved word in Postgres → `users`; flip the 1:1 so `insights.user_id` is PK + FK (`@MapsId`), not `users.insight_id`; don't store `global_rank` (it depends on other rows, so derive it in Phase 13); archetype as a `varchar` + CHECK on `insights` (computed data), not an FK on `users`; drop weekly/monthly (decision = daily digest); add `login`, `encrypted_github_token`, `needs_reauth`, `no_commit_days`, `public_profile`, timestamps; split `insights` JSON into `stats jsonb` plus text columns for the AI reviews.
-- ✅ Flyway added (`spring-boot-starter-flyway` + `flyway-database-postgresql`; Boot 4 needs its own starter). Config: `spring.flyway.schemas/default-schema: v2`, `hibernate.default_schema: v2`, `ddl-auto: validate`.
-- ✅ `V1__users_and_insights.sql` applied to Neon: created schema `v2`, `v2.flyway_schema_history`, `v2.users`, `v2.insights`. v1's `public` schema untouched. Worked through the Neon pooler endpoint.
-- Archetype names are now fixed by the CHECK constraint: `BUG_HUNTER, OPEN_SOURCE_HERO, SOFTWARE_ARCHITECT, WEEKEND_WARRIOR, CODE_CRUSADER`. The Java enum (Phase 4) must use exactly these names.
-- Next: `User` + `Insights` entities and repositories (Phase 2, step 4).
-- Review of `enity/Users.java`: it compiles, but startup fails validation: `wrong column type ... [github_id]; found [int8 (BIGINT)], but expecting [numeric(38,0)]`. `BigInteger` maps to NUMERIC; BIGINT needs `Long`. Also: no no-arg constructor (JPA requires one), snake_case Java fields (break Spring Data derived queries, where `_` means nested property), `java.sql.Timestamp` → `Instant`, null `Boolean`s vs NOT NULL (a DB DEFAULT only applies when the column is omitted from the INSERT, and Hibernate always sends every column), `@Column(name="githubId")` only works because Boot's `CamelCaseToUnderscoresNamingStrategy` rewrites explicit names too, `enity` typo, class should be singular `User`, no getters.
-- ✅ `Users` entity passes `ddl-auto: validate` (`Long` id, `Instant`, correct column names, protected no-arg constructor). App starts.
-- Still open: `alerts_enabled` field still snake_case; `publicProfile`/`needsReauth` have no Java default, so an INSERT will send NULL and violate NOT NULL; no public constructor or getters, so app code can't create or read a user; `enity` → `entity`, `Users` → `User`.
-- Review #3 of `entity/Users.java`: package renamed ✅, flags now primitives so the NOT NULL issue is fixed ✅, `@Getter` ✅. Open: no public `(githubId, login)` constructor, so app code can't create users; no setters on `encryptedGithubToken`/`needsReauth`/`publicProfile` (needed in Phases 6/10/12); class still `Users`. Rule noted: never return entities from controllers, since `@Getter` would leak the encrypted token through Jackson; use DTOs.
-- Review #4: all setters ✅, `int noCommitDays` ✅. 🐛 `public void User(Long, String)` is a **method**, not a constructor: it has a return type and the class is still named `Users`. Java allows methods with a class-like name, so it compiles silently.
-- ✅ `Users` entity done: real public `(githubId, login)` constructor, protected no-arg constructor for JPA, getters, setters on mutable fields, primitive flags, validates against `v2.users`. (Class kept as `Users`.)
-- Next: `UserRepository`, `Archetype` enum, `Insights` entity with `@MapsId`.
-- Review: `Archetype`, `Insights`, `UsersRepository`. Startup fails at repository creation: `No property 'existsUser' found for type 'Users'`. Derived queries must follow `existsBy<Property>`; `existsById` is inherited anyway, as is `findById`. Schema validation of both entities **passed** (the EntityManagerFactory is built before repositories). So Hibernate 7 accepts `text` columns for plain `String` fields, and the earlier "columnDefinition = text is needed" claim was wrong: it's optional, just documentation.
-- Open in `Insights`: `stats` and `updatedAt` are null on a new object but NOT NULL in the DB; no constructor taking `Users`; no setters for `stats`/`archetype`; public no-arg constructor; `userId` not private; unused `java.sql.SQLType` import. `""` defaults hide "not generated yet". No `InsightsRepository` yet.
-- `findByNeedsReauthFalseAndLastSyncedAtBefore` skips never-synced users (NULL < cutoff is not true in SQL). Adding `Or...IsNull` binds wrong (OR has lower precedence), so use `@Query` (JPQL) in Phase 10.
-- ✅ Review fixes applied:
-  - `UsersRepository`: removed `existsUser`/`findById`; replaced the sync query with `@Query findDueForSync(cutoff)` (`needsReauth = false and (lastSyncedAt is null or lastSyncedAt < :cutoff)`).
-  - `Insights`: protected no-arg + `Insights(Users)` constructor, `stats = new HashMap<>()`, `@UpdateTimestamp updatedAt`, setters for stats/archetype/AI texts, AI texts null by default, `private userId`, `@Table`.
-  - `Archetype`: `name` → `slug`.
-  - Added `InsightsRepository`.
-- ✅ The app starts: both entities validate, and the JPQL query parses at startup. Not yet verified: an actual save/read round trip (step 5).
-- 🐛 IntelliJ showed `Cannot resolve symbol 'log'` / `getGithubId` while `./mvnw compile` passed. Cause: the Arch `intellij-idea-community-edition` package (build IC-262.10315.125) doesn't bundle the Lombok plugin. Annotation processing settings were already correct. Fixed by installing the official JetBrains Lombok plugin (262.8665.176, compatible with `262.*`) into `~/.local/share/JetBrains/IdeaIC2026.2/lombok/`. Needs an IDE restart.
-- Lesson: IDE errors + green Maven build = IDE setup issue, not code.
-- ✅ Round trip, run 1 (`dev` profile): user + insights saved to `v2`. `insights.userId = 100276134` without setting it (`@MapsId` works); `stats` jsonb round-tripped; archetype stored as `CODE_CRUSADER`.
-- `createdAt=null` after `save()`: the DB filled it (`DEFAULT now()`), but Hibernate never reads back columns it didn't write (`insertable=false`).
-- 💥 `LazyInitializationException: Could not initialize proxy [Users#100276134] - no session` on `loaded.getUser().getLogin()`. `findById` runs in its own transaction; `user` is a LAZY proxy, and the session closed when the repository call returned. Fixes: a transaction around the whole unit of work (service-layer `@Transactional`, Phase 7), a fetch join / `@EntityGraph`, or load the user via its own repository.
-- Noted the startup WARN about `spring.jpa.open-in-view`: OSIV keeps the session open for the whole web request, which would *hide* this exact bug in controllers. Plan: set it to `false`.
-- Changes: `@Generated(event = INSERT)` on `Users.createdAt`; `@EntityGraph(attributePaths = "user")` override of `InsightsRepository.findById`.
-- Run 2 (data from run 1 still present):
-  - `usersRepository.save(new Users(id, login))` did **not** fail. The id is non-null, so Spring Data treats the entity as existing and calls `merge` (SELECT + UPDATE). ⚠️ The merge copies *every* field from the new object, so it silently resets the existing user's preferences (`alertsEnabled`, `noCommitDays`, `publicProfile`...) to defaults. Rule for Phase 6: for existing users, load and then update. Never `save(new Users(...))`.
-  - `createdAt` still null: it was an UPDATE, so the INSERT-generated value isn't re-read, and merge copied our null onto the loaded object.
-  - `insightsRepository.save(new Insights(user))` → `duplicate key ... insights_pkey`. Its `@Id` is null before `@MapsId` fills it, so `isNew()` is true → `persist` → INSERT → conflict.
-  - The `@EntityGraph` line wasn't reached, so it's not verified yet.
-- ✅ `spring.jpa.open-in-view: false` (startup warning gone).
-- Runner: user is now find-or-create → `createdAt=2026-10-06T03:57:12Z` (loaded from the DB). Insights is still `new Insights(user)` every run → same `insights_pkey` duplicate. Needs find-or-create too (`findById(id).orElseGet(() -> new Insights(user))`, then set fields and save, which becomes an UPDATE for an existing row).
-- ✅ Step 5 done. The runner is idempotent (find-or-create for both user and insights). Run 3: no errors, `createdAt` populated, `Insights belong to tushar27x` (the `@EntityGraph` fetch removes the LazyInitializationException). Runner kept behind `@Profile("dev")`.
+### 2026-10-01 → 10-06: Phase 2, steps 1–5
+- Schema review: `users` (not `user`, a reserved word); `insights.user_id` as PK + FK (`@MapsId`); no stored `global_rank` (derive it in Phase 13); archetype as `varchar` + CHECK on `insights`; daily digest only.
+- Flyway (`spring-boot-starter-flyway` + `flyway-database-postgresql`) owns the `v2` schema; `ddl-auto: validate`. `V1__users_and_insights.sql` applied to Neon; v1's `public` schema untouched.
+- Archetype names are fixed by the CHECK constraint: `BUG_HUNTER, OPEN_SOURCE_HERO, SOFTWARE_ARCHITECT, WEEKEND_WARRIOR, CODE_CRUSADER`.
+- Entities `Users`, `Insights`, enum `Archetype`; `UsersRepository` (`findByAlertsEnabledTrue`, `@Query findDueForSync`), `InsightsRepository` (`findById` with `@EntityGraph`). Bugs along the way: B10–B18.
+- Idempotent `dev`-profile round-trip runner (`DevDataRunner`) proved: `@MapsId`, `jsonb` round trip, enum vs CHECK, generated `createdAt`, fetch graph. `open-in-view: false`.
+- Correction: `columnDefinition = "text"` is *not* required for `String` → `text`; Hibernate 7 accepts it (only documentation).
+- Rules learned: DB defaults don't apply to explicit NULLs; `save()` persists or merges based on the id, so load existing rows before updating; never return entities from controllers (DTOs only).
+
+### 2026-10-13: Working agreement changed
+- **Port (phases 3–9):** implemented by Claude, one PR per phase for the developer to review.
+- **Phase 2 step 6 and v2 features (phases 10–13):** implemented by the developer, with Claude reviewing and hinting.
+- No Claude attribution in commits or PR descriptions. Bugs are logged in `BUGS.md`, and each PR lists the bugs found while building it.
