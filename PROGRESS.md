@@ -3,7 +3,7 @@
 Rewrite of the Insight Hub backend (v1: Python/FastAPI in `~/dev/insight_hub/server`, repo `tushar27x/insight_hub`) in **Spring Boot 4 + Spring AI** (repo `tushar27x/insightsHubV2`), done as a learning project.
 The goal is to understand the concepts, not just to reach feature parity. Each phase lists the concepts to learn, the v1 file to look at (if any), hints, and a "done when" checklist.
 
-**Status legend:** ⬜ not started · 🟨 in progress · ✅ done
+**Status legend:** ⬜ not started · 🟨 in progress · 👀 PR in review · ✅ done
 
 ---
 
@@ -49,7 +49,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 1 | First endpoint: health ping | 🧑 | ✅ | |
 | 2 | Data model for v2 (JPA), steps 1–5 | 🧑 | ✅ | |
 | 2.6 | `V2__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
-| 3 | GitHub GraphQL client | 🤖 | ⬜ | |
+| 3 | GitHub GraphQL client | 🤖 | 👀 in review | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ⬜ | |
 | 5 | AI layer with Spring AI | 🤖 | ⬜ | |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ⬜ | |
@@ -66,7 +66,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 Phase 3 (GitHub GraphQL client) · 🧑 Phase 2.6 (`V2__activity.sql`), independent of each other
+**Next up:** 🤖 Phase 3 in review, then Phase 4 (insights engine) · 🧑 Phase 2.6 (`V2__activity.sql`), independent of each other
 
 ---
 
@@ -168,7 +168,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 3: GitHub GraphQL client ⬜
+## Phase 3: GitHub GraphQL client 👀
 
 **v1 reference:** `services/github_service.py`
 
@@ -187,9 +187,9 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 7. Test it manually with a personal access token before wiring OAuth (e.g. a temporary dev endpoint or a `CommandLineRunner`).
 
 **Done when**
-- [ ] Your GitHub profile is fetched and mapped into a record tree, including commit SHAs and dates
-- [ ] GraphQL errors raise a meaningful exception
-- [ ] `rateLimit.cost` / `remaining` show up in the logs
+- [x] Your GitHub profile is fetched and mapped into a record tree, including commit SHAs and dates
+- [x] GraphQL errors raise a meaningful exception
+- [x] `rateLimit.cost` / `remaining` show up in the logs
 
 ---
 
@@ -478,3 +478,10 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - **Port (phases 3–9):** implemented by Claude, one PR per phase for the developer to review.
 - **Phase 2 step 6 and v2 features (phases 10–13):** implemented by the developer, with Claude reviewing and hinting.
 - No Claude attribution in commits or PR descriptions. Bugs are logged in `BUGS.md`, and each PR lists the bugs found while building it.
+
+### 2026-10-13: Phase 3 built (🤖)
+- `github` package: `GitHubGraphQlClient` (`fetchUserInsights(token, login[, from, to])`), `GitHubClientConfig` (`RestClient` with base URL + `User-Agent`), typed records in `github.model`, `GitHubApiException` / `GitHubAuthException` (401, for Phase 10's `needs_reauth`). `Clock` bean in `config/ClockConfig`.
+- Query `graphql/user-insights.graphql` = v1's query + `rateLimit`, commit `oid`/`committedDate`/`author.user.login`, and a `from`/`to` window (default: last 365 days; GitHub's max is 1 year).
+- Tests: `GitHubGraphQlClientTest` (9 unit tests, `MockRestServiceServer`, fixed `Clock`); `GitHubGraphQlClientLiveTest` (opt-in, needs `GITHUB_TOKEN`). Live: the query costs **1 point**.
+- Bug log: B19.
+- ⚠️ For 2.6/11: `history` returns the default branch's last 5 commits by **anyone**. Filter by `author.user.login` (null when the commit email isn't linked to an account) to get the user's own commits.
