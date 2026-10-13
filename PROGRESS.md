@@ -146,7 +146,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 | Table | Purpose | Notes |
 |---|---|---|
 | `users` | GitHub id (PK), login, **email**, **encrypted GitHub token**, preferences (`alerts_enabled`, `no_commit_days`, `public_profile`), `last_synced_at` | Preferences could be a separate table. Your call |
-| `insights` | Latest computed stats JSON, AI texts (roast, weekly, craft), archetype | Replaces v1's `user_templates` |
+| `insights` | Latest computed stats JSON, AI texts (year in review, weekly, craft), archetype | Replaces v1's `user_templates` |
 | `daily_contributions` | `(user_id, date)` → `count` | Composite key. One row per day, backfilled from the contribution calendar |
 | `commits` | `sha` (unique), user, repo, message, `committed_at` | Feeds the lazy-message rule. `sha` makes inserts idempotent |
 | `habit_alerts` | user, type, detected date, details JSON, `digest_id` (null = not sent yet) | Unique `(user_id, type, detected_on)` so the same alert can't be created twice |
@@ -237,7 +237,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 5. `generate_repo_summaries` returns a `Map<String,String>`. Try `.call().entity(new ParameterizedTypeReference<...>())` to get structured output in **one** call instead of 3.
 6. v1 used `asyncio.gather` for 4 AI calls in parallel. In Java: `CompletableFuture.supplyAsync(..., executor)` + `allOf`. Enable virtual threads (`spring.threads.virtual.enabled=true`) and use a virtual-thread executor. Handle each future's exception separately (like `return_exceptions=True`).
 7. Per-call options (`max_tokens`, model override for the cheaper 8B model) go through `.options(...)`.
-8. Design the AI service so Phase 12 can reuse it. The digest email's intro will be written in the same manager persona.
+8. Design the AI service so Phase 12 can reuse it. The digest email's intro will be written in the same mentor persona.
 9. **Character sheet** (from the PR #3 review): a 5th generator that takes the scored class, `ArchetypeScores` and `HabitProfile` and writes a D&D-style title and short lore. The class is a **fixed input**; the LLM can't change it. Use structured output (`.entity(CharacterSheet.class)`) and a static fallback built from `Archetype.getLabel()` / `getHabit()`.
 
 **Done when**
@@ -251,7 +251,8 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 - Repo summaries: one structured call (`.entity(RepoSummaries.class)`) instead of v1's 3. Invented repo names are dropped, skipped repos get v1's default text, and READMEs are marked as untrusted data in the prompt.
 - Character sheet: a title that doesn't name the scored class is rejected (next provider, then the static sheet).
 - **Models changed:** v1's Llama models are retired on Groq (B26). Now `openai/gpt-oss-120b` / `gpt-oss-20b` with `reasoning_effort: low` and token headroom (B27).
-- Not done here (Phase 7): persisting the AI texts (the character sheet needs columns), and attaching summaries to `ranked_repos`.
+- **Persona changed (developer's call):** v1's roast and "tough love" manager are gone. v2 is a habit tracker, so every generator speaks as a supportive senior engineer: specific strengths, one habit to grow, one small next step, no sarcasm or invented praise. The roast became the **year in review**. `AiReviewerTest` fails if roast-style wording comes back into a prompt.
+- Not done here (Phase 7): persisting the AI texts (the character sheet needs columns, and `insights.roast` gets renamed to `year_in_review`), and attaching summaries to `ranked_repos`.
 
 
 ---
@@ -292,8 +293,9 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 1. The v1 callback does far too much. Extract a `SyncService.sync(userId)`: fetch → compute → AI → upsert → evict cache. **Both** the login callback and the Phase 10 scheduler will call it, so it must not depend on anything from the HTTP request.
 2. **Don't hold a DB transaction open during GitHub + AI calls** (they take seconds). Do the slow work first, then persist inside a short `@Transactional` method. Beware: `@Transactional` on a method called from *within the same class* doesn't work. Find out why (proxies!).
 3. Build the insights response DTO as a record in an `InsightsQueryService.getInsights(userId)` annotated `@Cacheable(value="user_insights", key="#userId")`. Configure a 24h TTL in a `RedisCacheConfiguration` bean with a JSON serializer.
-4. `@CacheEvict(value="user_insights", key="#userId")` on the sync's persist step replaces v1's manual `redis.delete`.
-5. v1 swallows sync errors so login still works. Keep that behavior, but log properly.
+4. The migration for this phase adds the character-sheet columns and renames `insights.roast` to `year_in_review` (Phase 5 replaced the roast). Rename the `Insights` entity field to match.
+5. `@CacheEvict(value="user_insights", key="#userId")` on the sync's persist step replaces v1's manual `redis.delete`.
+6. v1 swallows sync errors so login still works. Keep that behavior, but log properly.
 
 **Done when**
 - [ ] Second `GET /user/insights` is served from Redis (check with `redis-cli KEYS *`)
@@ -388,7 +390,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ## Phase 12: Notifications: daily digest email ⬜
 
-**Goal:** once a day, each user with pending alerts gets **one** email that summarises them in the manager persona.
+**Goal:** once a day, each user with pending alerts gets **one** email that summarises them in the mentor persona.
 
 **Concepts:** `JavaMailSender` + `MimeMessageHelper`, HTML email templates (Thymeleaf), Strategy pattern (`NotificationChannel`), delivery guarantees (at-least-once vs at-most-once), signed unsubscribe links, a preferences API.
 
@@ -396,7 +398,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 1. `interface NotificationChannel { void send(User user, Digest digest); }` with an `EmailChannel` implementation. Discord comes later as a second implementation (stretch).
 2. Digest job (`@Scheduled`, after the sync job): for each user with pending `habit_alerts` (`digest_id IS NULL`) → build one digest → send → mark the alerts as sent. **No alerts, no email.**
 3. Think through failure: if sending succeeds but marking fails, the user gets a duplicate tomorrow. If you mark first and sending fails, the alert is lost. Pick one and write down why (a digest that occasionally repeats is usually the lesser evil).
-4. Content: Spring AI writes a short intro in the manager persona from the alert list (reuse Phase 5). **The email must still go out if the AI call fails**, so have a plain template fallback.
+4. Content: Spring AI writes a short intro in the mentor persona from the alert list (reuse Phase 5). **The email must still go out if the AI call fails**, so have a plain template fallback.
 5. HTML: add `spring-boot-starter-thymeleaf` and render `templates/email/digest.html` with `TemplateEngine` into a string. That's server-side rendering for email, not a web frontend.
 6. SMTP for development: a sandbox inbox (e.g. Mailtrap) or a Gmail app password. Use a real provider (Resend, Brevo, SES) later. All of them are configured with `spring.mail.*` properties.
 7. Unsubscribe: every email includes a link like `/api/notifications/unsubscribe?token=...`. The token should be signed (you already have JWT tooling) and the endpoint public.
@@ -419,7 +421,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 **Hints**
 1. ~~Replace the first-match rules (Phase 4) with a scorer~~ (done in #3): compute a 0–100 score for **each** archetype from normalised metrics (e.g. issues ratio → Bug Hunter, PR ratio → Open Source Hero, infra files → Architect, weekend share → Weekend Warrior). Primary archetype = highest score, with a fixed tie-break order.
-2. Store the breakdown (which metric contributed what) as JSON, so you can explain a score, and maybe let the AI roast it.
+2. Store the breakdown (which metric contributed what) as JSON, so you can explain a score, and maybe let the AI explain it.
 3. Store `algo_version` with every score. When the formula changes, recompute everyone so old and new scores never mix in one ranking.
 4. Normalisation: with few users, use fixed caps (e.g. 1,000 commits → 100). With many, percentiles. Start with caps.
 5. Ranking in Postgres: `RANK() OVER (PARTITION BY archetype ORDER BY score DESC)`. Write it in HQL or as a native query. Endpoints: `GET /api/leaderboard?archetype=...&page=...` (paged), and `GET /api/user/rank` (your rank + percentile).
@@ -528,3 +530,4 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Live: Groq had retired both v1 models (404). **v1 production is affected** (B26). Replacement gpt-oss models spent the whole `max_tokens` on reasoning until `reasoning_effort: low` + headroom (B27). The LLM gendered a user until the persona said not to (B28).
 - Tests: 9 chain + 14 reviewer + 4 parallel-service (with a recording `FakeChatModel`, so the real `ChatClient` path runs), plus opt-in `AiLiveTest` (needs `GROQ_API_KEY`).
 - Bug log: B25–B28.
+- Developer's review: drop the roast. The habit tracker needs encouragement, so the persona became a supportive senior engineer and the roast became a year in review. Checked live: each review names real strengths and ends with one concrete step.

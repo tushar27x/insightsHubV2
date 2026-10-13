@@ -194,6 +194,7 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Symptom:** live tests failed before any HTTP call, for a class that compiled fine. `target/classes/.../AiConfig.class` existed right afterwards.
 - **Root cause:** IntelliJ was open and rebuilt the just-edited `AiConfig.java` into the same `target/classes` while Maven's test JVM was running. Timestamps: test report `13:22:10.706`, class file rewritten `13:22:10.989`. The file was briefly missing.
 - **Fix:** rerun. Nothing in the code.
+- **Happened again** with resources during the persona change: `FileNotFoundException: prompts/weekly-review.st` for a file that was in `src/` and showed up in `target/classes` right after the run (IntelliJ copied it at `14:26:11`). Rerunning fixed it.
 - **Lesson:** an IDE and Maven sharing `target/` can race. If a "class not found" makes no sense, compare timestamps before debugging code. (Optional: in IntelliJ, delegate build/run to Maven, or turn off "Build project automatically".)
 
 ### B26
