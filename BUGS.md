@@ -24,6 +24,9 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 | [B17](#b17) | 2 | `LazyInitializationException ... no session` | Code |
 | [B18](#b18) | 2 | `save(new Entity(existingId))`: silent overwrite for `Users`, duplicate key for `Insights` | Code |
 | [B19](#b19) | 3 | `RestClient.Builder` auto-config only present via the Spring AI starter | Dependency |
+| [B20](#b20) | 4 | **v1:** insights crash on any empty repository (`defaultBranchRef: null`) | Logic (v1) |
+| [B21](#b21) | 4 | Phase 4 branch created from a stale local `main` | Process |
+| [B22](#b22) | 4 | `reference to assertThat is ambiguous` with Jackson's `valueToTree` | Test code |
 
 ---
 
@@ -144,3 +147,23 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Risk:** removing or changing the AI starter would make startup fail with "no bean of type `RestClient.Builder`" in code unrelated to AI.
 - **Fix:** declared `spring-boot-starter-restclient` directly in `pom.xml`.
 - **Lesson:** Boot 4 splits auto-config into modules. Declare a starter for every feature you use directly; don't rely on transitive ones.
+
+### B20
+**v1: `calculate_user_insights` crashes on any empty repository** · Phase 4 · Logic (bug in v1, found while porting)
+- **Symptom:** running v1's real Python code on the Phase 3 fixture: `AttributeError: 'NoneType' object has no attribute 'get'` at `repo.get("defaultBranchRef", {}).get("target", {})`.
+- **Root cause:** GitHub returns `"defaultBranchRef": null` for a repo with no commits. Python's `dict.get(key, default)` only uses the default when the key is *missing*, not when its value is `null`.
+- **Impact in v1 production:** `routes.py` swallows the exception in its broad `try/except`, so any user with an empty repo among their top 5 by stars logs in fine but **never gets insights saved**, silently.
+- **Fix (v2):** `InsightsEngine` treats every nested GitHub object as nullable; covered by `InsightsEngineTest.emptyRepositoryDoesNotCrash_B20`. v1 itself is unchanged.
+- **Lesson:** `x.get(k, {})` is not null-safe in Python, and a blanket `except` turns crashes into silent data loss.
+
+### B21
+**Phase 4 branch created from a stale `main`** · Phase 4 · Process
+- **Symptom:** the Phase 3 test fixture was missing on the new branch.
+- **Root cause:** local `main` was 4 commits behind `origin/main` (the PR #2 merge wasn't pulled), and the branch was created from the Phase 3 branch tip instead of the merge. The checkout had also changed between commands (likely IDE git activity during the merge).
+- **Fix:** fast-forwarded `main` (`git merge --ff-only origin/main`) and recreated the branch from `origin/main` before any commits.
+- **Lesson:** before branching, verify `git rev-parse --abbrev-ref HEAD` and `git status -sb` show `main` level with `origin/main`.
+
+### B22
+**`reference to assertThat is ambiguous`** · Phase 4 · Test code
+- **Root cause:** `JsonMapper.valueToTree(...)` returns a generic `<T extends JsonNode> T`. Passed straight to AssertJ's overloaded `assertThat`, the compiler can't infer `T` (both `Predicate` and `IntPredicate` overloads match).
+- **Fix:** assign the result to a `JsonNode` variable first.

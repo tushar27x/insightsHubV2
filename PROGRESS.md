@@ -49,8 +49,8 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 1 | First endpoint: health ping | 🧑 | ✅ | |
 | 2 | Data model for v2 (JPA), steps 1–5 | 🧑 | ✅ | |
 | 2.6 | `V2__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
-| 3 | GitHub GraphQL client | 🤖 | 👀 in review | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
-| 4 | Insights engine (pure Java + first tests) | 🤖 | ⬜ | |
+| 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
+| 4 | Insights engine (pure Java + first tests) | 🤖 | 👀 in review | |
 | 5 | AI layer with Spring AI | 🤖 | ⬜ | |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ⬜ | |
 | 7 | Sync orchestration & Redis caching | 🤖 | ⬜ | |
@@ -66,7 +66,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 Phase 3 in review, then Phase 4 (insights engine) · 🧑 Phase 2.6 (`V2__activity.sql`), independent of each other
+**Next up:** 🤖 Phase 4 in review, then Phase 5 (AI layer with Spring AI) · 🧑 Phase 2.6 (`V2__activity.sql`)
 
 ---
 
@@ -168,7 +168,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 3: GitHub GraphQL client 👀
+## Phase 3: GitHub GraphQL client ✅
 
 **v1 reference:** `services/github_service.py`
 
@@ -193,7 +193,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 4: Insights engine (pure Java + first tests) ⬜
+## Phase 4: Insights engine (pure Java + first tests) 👀
 
 **v1 reference:** `services/insights_service.py` (`calculate_user_insights`, `determine_archetype`)
 
@@ -209,8 +209,8 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 7. Note: the generated `InsightshubApplicationTests.contextLoads()` starts the full context, so it needs DB/Redis/Groq. Decide how to handle it (Phase 14: Testcontainers).
 
 **Done when**
-- [ ] Output matches v1's `stats` JSON shape for the same input
-- [ ] Unit tests cover all 5 archetypes + heatmap edge cases (< 7 days)
+- [x] Output matches v1's `stats` JSON shape for the same input
+- [x] Unit tests cover all 5 archetypes + heatmap edge cases (< 7 days)
 
 ---
 
@@ -485,3 +485,10 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Tests: `GitHubGraphQlClientTest` (9 unit tests, `MockRestServiceServer`, fixed `Clock`); `GitHubGraphQlClientLiveTest` (opt-in, needs `GITHUB_TOKEN`). Live: the query costs **1 point**.
 - Bug log: B19.
 - ⚠️ For 2.6/11: `history` returns the default branch's last 5 commits by **anyone**. Filter by `author.user.login` (null when the commit email isn't linked to an account) to get the user's own commits.
+
+### 2026-10-13: Phase 4 built (🤖)
+- `insights` package: `InsightsEngine.calculate(GitHubUser)` → `InsightsResult(UserStats, Archetype)`. `UserStats` serializes with v1's snake_case keys (`@JsonNaming`). The archetype rules (`RuleBasedArchetypeClassifier`) sit behind `ArchetypeClassifier`, so Phase 13 can replace them.
+- **Golden test against v1:** ran v1's actual Python `calculate_user_insights` on a fixture → `insights/v1-expected-insights.json`; `InsightsEngineParityTest` asserts the Java stats JSON is identical.
+- Deliberate differences from v1: null-safe for empty repos (B20); the weekly heatmap always has 7 entries (v1 returned `[]` for an empty calendar).
+- Tests: 1 parity + 13 engine + 14 archetype (all 5 archetypes, thresholds, priorities, infra-file signals).
+- Bug log: B20 (v1 bug), B21, B22.
