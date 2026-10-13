@@ -52,7 +52,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 2.6 | `V3__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | 👀 in review | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
-| 5 | AI layer with Spring AI | 🤖 | ⬜ | |
+| 5 | AI layer with Spring AI | 🤖 | 👀 in review | |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ⬜ | |
 | 7 | Sync orchestration & Redis caching | 🤖 | ⬜ | |
 | 8 | Rate limiting | 🤖 | ⬜ | |
@@ -67,7 +67,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 Phase 4 in review, then Phase 5 (AI layer with Spring AI) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
+**Next up:** 🤖 Phase 5 in review, then Phase 6 (Auth) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
 
 ---
 
@@ -223,7 +223,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 5: AI layer with Spring AI ⭐ ⬜
+## Phase 5: AI layer with Spring AI ⭐ 👀
 
 **v1 reference:** `services/ai_service.py`
 
@@ -241,9 +241,18 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 9. **Character sheet** (from the PR #3 review): a 5th generator that takes the scored class, `ArchetypeScores` and `HabitProfile` and writes a D&D-style title and short lore. The class is a **fixed input**; the LLM can't change it. Use structured output (`.entity(CharacterSheet.class)`) and a static fallback built from `Archetype.getLabel()` / `getHabit()`.
 
 **Done when**
-- [ ] All 4 generators work against Groq
-- [ ] Killing the Groq key falls back to Gemini (the Java version of v1's `test_ai.py`)
-- [ ] The 4 calls run in parallel (measure the time)
+- [x] All 4 generators work against Groq (+ the character sheet), checked live by `AiLiveTest`
+- [x] Killing the Groq key falls back to the next provider. Proven live with a dead key → a second Groq provider; Gemini is wired but switched off until `GEMINI_API_KEY` is set
+- [x] The calls run in parallel: 5 generators in ~2 s live; unit test: 5 × 400 ms tasks finish in < 1.2 s
+
+**As built**
+- `ai` package: `LlmChain` (providers in order → first usable answer, never throws), `LlmProvider` (client + model per `ModelTier` + reasoning effort), `AiConfig` (Groq from auto-config + optional hand-built fallback `OpenAiChatModel`), `AiReviewer` (5 generators with static fallbacks), `AiInsightsService` (parallel on Boot's virtual-thread `applicationTaskExecutor`, per-task timeout and crash isolation), `AiProperties` (`insightshub.ai.*`).
+- A provider chain instead of `@Qualifier` beans: the fallback is optional, and the try-next logic lives in one place instead of every generator.
+- Repo summaries: one structured call (`.entity(RepoSummaries.class)`) instead of v1's 3. Invented repo names are dropped, skipped repos get v1's default text, and READMEs are marked as untrusted data in the prompt.
+- Character sheet: a title that doesn't name the scored class is rejected (next provider, then the static sheet).
+- **Models changed:** v1's Llama models are retired on Groq (B26). Now `openai/gpt-oss-120b` / `gpt-oss-20b` with `reasoning_effort: low` and token headroom (B27).
+- Not done here (Phase 7): persisting the AI texts (the character sheet needs columns), and attaching summaries to `ranked_repos`.
+
 
 ---
 
@@ -512,3 +521,10 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Calibration on tushar27x: Monk 52, Rogue 47, Paladin 44, Barbarian 44, Wizard 33, Artificer 33, Bard 10, Cleric 0.
 - Tests: 32 habit-profile + 15 scoring + 14 engine + 1 parity, plus an opt-in live scoring test.
 - Bug log: B23, B24.
+
+### 2026-10-13: Phase 5 built (🤖)
+- Spring AI 2.0's OpenAI module wraps the official `openai-java` SDK: a second model is built from `OpenAiChatOptions` (`baseUrl`, `apiKey`, `model`, `maxRetries`, `timeout`); `.options(...)` takes a builder. The primary is set to fail fast (1 retry, 30 s instead of 3 × 60 s) so the fallback gets its turn.
+- StringTemplate renders a `List` with no separator (`[1, 2, 3]` → `123`), so lists are formatted in Java.
+- Live: Groq had retired both v1 models (404). **v1 production is affected** (B26). Replacement gpt-oss models spent the whole `max_tokens` on reasoning until `reasoning_effort: low` + headroom (B27). The LLM gendered a user until the persona said not to (B28).
+- Tests: 9 chain + 14 reviewer + 4 parallel-service (with a recording `FakeChatModel`, so the real `ChatClient` path runs), plus opt-in `AiLiveTest` (needs `GROQ_API_KEY`).
+- Bug log: B25–B28.
