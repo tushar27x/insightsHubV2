@@ -27,6 +27,8 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 | [B20](#b20) | 4 | **v1:** insights crash on any empty repository (`defaultBranchRef: null`) | Logic (v1) |
 | [B21](#b21) | 4 | Phase 4 branch created from a stale local `main` | Process |
 | [B22](#b22) | 4 | `reference to assertThat is ambiguous` with Jackson's `valueToTree` | Test code |
+| [B23](#b23) | 4 | `./mvnw test` would apply unreviewed Flyway migrations to the live Neon DB | Process (latent) |
+| [B24](#b24) | 4 | Renaming enum constants broke `DevDataRunner` (`cannot find symbol CODE_CRUSADER`) | Code |
 
 ---
 
@@ -167,3 +169,18 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 **`reference to assertThat is ambiguous`** · Phase 4 · Test code
 - **Root cause:** `JsonMapper.valueToTree(...)` returns a generic `<T extends JsonNode> T`. Passed straight to AssertJ's overloaded `assertThat`, the compiler can't infer `T` (both `Predicate` and `IntPredicate` overloads match).
 - **Fix:** assign the result to a `JsonNode` variable first.
+
+### B23
+**`./mvnw test` would apply unreviewed Flyway migrations to the live Neon DB** · Phase 4 · Process (latent, caught before it happened)
+- **Found by:** about to run the full suite after adding `V2__archetype_classes.sql`. `InsightshubApplicationTests.contextLoads()` is a `@SpringBootTest` that starts the whole app with the real datasource, so Flyway would migrate Neon as a side effect of running the tests.
+- **Risk:** a migration applied before review can't be changed afterwards. Flyway checksums applied migrations and refuses to start when a file differs, which forces a `flyway repair` or a fix-up migration.
+- **Workaround (this PR):** ran the unit tests with `-Dtest='!InsightshubApplicationTests'`, and dry-ran V2 on Neon inside `BEGIN … ROLLBACK` (Postgres DDL is transactional), so nothing was committed. A local Docker Postgres wasn't usable (no permission on `/var/run/docker.sock`).
+- **Proper fix (Phase 14):** Testcontainers + `@ServiceConnection`, so tests never touch Neon. Until then, exclude `contextLoads` when a PR adds a migration.
+- **Lesson:** a "does the context load?" test against a shared database isn't harmless: it runs every startup side effect, migrations included.
+
+### B24
+**Renaming enum constants broke `DevDataRunner`** · Phase 4 · Code
+- **Symptom:** `cannot find symbol: variable CODE_CRUSADER` in `dev/DevDataRunner.java` after replacing the archetypes.
+- **Root cause:** the dev runner hard-codes an archetype, and only the `insights` package had been searched for usages.
+- **Fix:** use `Archetype.PALADIN`, the same mapping as the V2 migration (`CODE_CRUSADER → PALADIN`).
+- **Lesson:** after renaming or removing an enum constant, grep the whole source tree, including `dev`/profile-only code that normal tests don't exercise.

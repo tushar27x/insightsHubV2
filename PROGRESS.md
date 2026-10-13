@@ -14,7 +14,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 **What v2 adds beyond the port**
 1. **Habit tracker:** a daily scheduled sync of each user's GitHub activity, kept as history.
 2. **Alerts:** detected habits are sent to the user in a **daily digest email**.
-3. **Archetype ranking:** archetypes become scores, and users are ranked within their archetype, globally.
+3. **Archetype ranking:** archetypes become scores, and users are ranked within their archetype, globally. Archetypes are D&D-style classes tied to coding habits (decided in the PR #3 review).
 
 **Decisions (2026-10-01)**
 | Topic | Decision |
@@ -35,6 +35,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | v2 features (2.6, 10–13) | Implemented by the developer; Claude reviews and gives hints |
 | Attribution | No Claude co-author lines in commits, no Claude footer in PR descriptions |
 | Bugs | Every bug is logged in [`BUGS.md`](BUGS.md); PR descriptions list the bugs found in that phase; the developer is kept informed while debugging |
+| Archetype scoring | Built by Claude in PR #3 after the developer's review (code scores the class; the LLM only adds flavour in Phase 5). Phase 13 keeps the leaderboards |
 
 ---
 
@@ -48,7 +49,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 0 | Setup, infra & config | 🧑 | ✅ | |
 | 1 | First endpoint: health ping | 🧑 | ✅ | |
 | 2 | Data model for v2 (JPA), steps 1–5 | 🧑 | ✅ | |
-| 2.6 | `V2__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
+| 2.6 | `V3__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | 👀 in review | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
 | 5 | AI layer with Spring AI | 🤖 | ⬜ | |
@@ -60,13 +61,13 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 10 | Scheduled daily sync & activity history | 🧑 | ⬜ | |
 | 11 | Habit engine (3 rules) | 🧑 | ⬜ | |
 | 12 | Notifications: daily digest email | 🧑 | ⬜ | |
-| 13 | Archetype scoring & leaderboards | 🧑 | ⬜ | |
+| 13 | Archetype leaderboards (scoring done in #3) | 🧑 | ⬜ | |
 | | **Part C: Ship it** | | | |
 | 14 | Testing, API docs & deployment | TBD | ⬜ | |
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 Phase 4 in review, then Phase 5 (AI layer with Spring AI) · 🧑 Phase 2.6 (`V2__activity.sql`)
+**Next up:** 🤖 Phase 4 in review, then Phase 5 (AI layer with Spring AI) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
 
 ---
 
@@ -211,6 +212,14 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 **Done when**
 - [x] Output matches v1's `stats` JSON shape for the same input
 - [x] Unit tests cover all 5 archetypes + heatmap edge cases (< 7 days)
+- [x] **Review change:** archetypes redesigned as 8 scored D&D classes (see below)
+
+**Archetype redesign (PR #3 review)**
+- v1's five archetypes were first-match thresholds on raw totals, and some weren't habits at all. They're replaced by **8 classes**, each tied to one habit: 🛡️ Paladin (streaks), 🪓 Barbarian (huge PRs, bursts), 🧙 Wizard (languages), ⚙️ Artificer (infra files), ✨ Cleric (issues, fix commits), 🎻 Bard (PRs, audience, docs), 🧘 Monk (small PRs, descriptive messages), 🗡️ Rogue (weekends).
+- `HabitProfile.from(user, days)` derives 15 signals (shares 0..1); commit signals use **only the user's own commits**. `ScoringArchetypeClassifier` gives every class a 0–100 score (weighted signals scaled between a floor and a cap); highest wins, ties go to declaration order, all-zero → Rogue. `ALGO_VERSION = 1`.
+- Why code decides and not the LLM: stable classes for leaderboards, no prompt injection through READMEs or commit messages, works when the AI is down, unit-testable, no extra LLM call. The LLM writes the "character sheet" (title, lore) in Phase 5.
+- `V2__archetype_classes.sql` swaps the CHECK constraint and maps old values (dry-run on Neon in a rolled-back transaction). Scores aren't persisted yet: that's Phase 7 / Phase 13's `archetype_scores` table.
+- `InsightsEngineLiveTest` (opt-in) prints a real profile's signals and scores for calibration.
 
 ---
 
@@ -229,6 +238,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 6. v1 used `asyncio.gather` for 4 AI calls in parallel. In Java: `CompletableFuture.supplyAsync(..., executor)` + `allOf`. Enable virtual threads (`spring.threads.virtual.enabled=true`) and use a virtual-thread executor. Handle each future's exception separately (like `return_exceptions=True`).
 7. Per-call options (`max_tokens`, model override for the cheaper 8B model) go through `.options(...)`.
 8. Design the AI service so Phase 12 can reuse it. The digest email's intro will be written in the same manager persona.
+9. **Character sheet** (from the PR #3 review): a 5th generator that takes the scored class, `ArchetypeScores` and `HabitProfile` and writes a D&D-style title and short lore. The class is a **fixed input**; the LLM can't change it. Use structured output (`.entity(CharacterSheet.class)`) and a static fallback built from `Archetype.getLabel()` / `getHabit()`.
 
 **Done when**
 - [ ] All 4 generators work against Groq
@@ -394,10 +404,12 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 **Goal:** archetypes become **scores**, and users are ranked within their archetype, globally.
 
+> ✅ **Scoring is done** (PR #3 review): `HabitProfile` + `ScoringArchetypeClassifier` give 8 D&D classes 0–100 scores with `ALGO_VERSION`. Hint 1 is covered and hint 4 uses fixed caps. What's left here: storing scores (hints 2–3), leaderboards (5–7) and the seeder (8).
+
 **Concepts:** normalisation and scoring design, versioned algorithms, SQL window functions (`RANK() OVER (PARTITION BY ...)`, supported in Hibernate 6+ HQL), Spring Data `Pageable`, Redis **sorted sets** (`ZADD`, `ZREVRANK`, `ZREVRANGE`), profiles for seed data.
 
 **Hints**
-1. Replace the first-match rules (Phase 4) with a scorer: compute a 0–100 score for **each** archetype from normalised metrics (e.g. issues ratio → Bug Hunter, PR ratio → Open Source Hero, infra files → Architect, weekend share → Weekend Warrior). Primary archetype = highest score, with a fixed tie-break order.
+1. ~~Replace the first-match rules (Phase 4) with a scorer~~ (done in #3): compute a 0–100 score for **each** archetype from normalised metrics (e.g. issues ratio → Bug Hunter, PR ratio → Open Source Hero, infra files → Architect, weekend share → Weekend Warrior). Primary archetype = highest score, with a fixed tie-break order.
 2. Store the breakdown (which metric contributed what) as JSON, so you can explain a score, and maybe let the AI roast it.
 3. Store `algo_version` with every score. When the formula changes, recompute everyone so old and new scores never mix in one ranking.
 4. Normalisation: with few users, use fixed caps (e.g. 1,000 commits → 100). With many, percentiles. Start with caps.
@@ -468,7 +480,7 @@ One entry per session: what was built, what was learned, open questions. Bug det
 ### 2026-10-01 → 10-06: Phase 2, steps 1–5
 - Schema review: `users` (not `user`, a reserved word); `insights.user_id` as PK + FK (`@MapsId`); no stored `global_rank` (derive it in Phase 13); archetype as `varchar` + CHECK on `insights`; daily digest only.
 - Flyway (`spring-boot-starter-flyway` + `flyway-database-postgresql`) owns the `v2` schema; `ddl-auto: validate`. `V1__users_and_insights.sql` applied to Neon; v1's `public` schema untouched.
-- Archetype names are fixed by the CHECK constraint: `BUG_HUNTER, OPEN_SOURCE_HERO, SOFTWARE_ARCHITECT, WEEKEND_WARRIOR, CODE_CRUSADER`.
+- Archetype names are fixed by the CHECK constraint: `BUG_HUNTER, OPEN_SOURCE_HERO, SOFTWARE_ARCHITECT, WEEKEND_WARRIOR, CODE_CRUSADER` (replaced by 8 D&D classes in V2, PR #3).
 - Entities `Users`, `Insights`, enum `Archetype`; `UsersRepository` (`findByAlertsEnabledTrue`, `@Query findDueForSync`), `InsightsRepository` (`findById` with `@EntityGraph`). Bugs along the way: B10–B18.
 - Idempotent `dev`-profile round-trip runner (`DevDataRunner`) proved: `@MapsId`, `jsonb` round trip, enum vs CHECK, generated `createdAt`, fetch graph. `open-in-view: false`.
 - Correction: `columnDefinition = "text"` is *not* required for `String` → `text`; Hibernate 7 accepts it (only documentation).
@@ -492,3 +504,11 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Deliberate differences from v1: null-safe for empty repos (B20); the weekly heatmap always has 7 entries (v1 returned `[]` for an empty calendar).
 - Tests: 1 parity + 13 engine + 14 archetype (all 5 archetypes, thresholds, priorities, infra-file signals).
 - Bug log: B20 (v1 bug), B21, B22.
+
+### 2026-10-13: PR #3 review: archetypes as D&D classes (🤖)
+- Review: v1's archetypes weren't based on real habits, and the names should be fantasy (D&D) classes. Proposed and agreed: **code scores the class, the LLM adds the flavour** (Phase 5).
+- 8 classes, `HabitProfile` (15 signals), `ScoringArchetypeClassifier` (0–100 per class, `ALGO_VERSION = 1`), `ArchetypeScores`; `InsightsResult(stats, habits, archetypeScores)`. `RuleBasedArchetypeClassifier` removed; the parity test now compares stats only.
+- `V2__archetype_classes.sql`, so the developer's activity migration becomes `V3__activity.sql`.
+- Calibration on tushar27x: Monk 52, Rogue 47, Paladin 44, Barbarian 44, Wizard 33, Artificer 33, Bard 10, Cleric 0.
+- Tests: 32 habit-profile + 15 scoring + 14 engine + 1 parity, plus an opt-in live scoring test.
+- Bug log: B23, B24.
