@@ -24,6 +24,11 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 | [B17](#b17) | 2 | `LazyInitializationException ... no session` | Code |
 | [B18](#b18) | 2 | `save(new Entity(existingId))`: silent overwrite for `Users`, duplicate key for `Insights` | Code |
 | [B19](#b19) | 3 | `RestClient.Builder` auto-config only present via the Spring AI starter | Dependency |
+| [B20](#b20) | 4 | **v1:** insights crash on any empty repository (`defaultBranchRef: null`) | Logic (v1) |
+| [B21](#b21) | 4 | Phase 4 branch created from a stale local `main` | Process |
+| [B22](#b22) | 4 | `reference to assertThat is ambiguous` with Jackson's `valueToTree` | Test code |
+| [B23](#b23) | 4 | `./mvnw test` would apply unreviewed Flyway migrations to the live Neon DB | Process (latent) |
+| [B24](#b24) | 4 | Renaming enum constants broke `DevDataRunner` (`cannot find symbol CODE_CRUSADER`) | Code |
 
 ---
 
@@ -144,3 +149,38 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Risk:** removing or changing the AI starter would make startup fail with "no bean of type `RestClient.Builder`" in code unrelated to AI.
 - **Fix:** declared `spring-boot-starter-restclient` directly in `pom.xml`.
 - **Lesson:** Boot 4 splits auto-config into modules. Declare a starter for every feature you use directly; don't rely on transitive ones.
+
+### B20
+**v1: `calculate_user_insights` crashes on any empty repository** · Phase 4 · Logic (bug in v1, found while porting)
+- **Symptom:** running v1's real Python code on the Phase 3 fixture: `AttributeError: 'NoneType' object has no attribute 'get'` at `repo.get("defaultBranchRef", {}).get("target", {})`.
+- **Root cause:** GitHub returns `"defaultBranchRef": null` for a repo with no commits. Python's `dict.get(key, default)` only uses the default when the key is *missing*, not when its value is `null`.
+- **Impact in v1 production:** `routes.py` swallows the exception in its broad `try/except`, so any user with an empty repo among their top 5 by stars logs in fine but **never gets insights saved**, silently.
+- **Fix (v2):** `InsightsEngine` treats every nested GitHub object as nullable; covered by `InsightsEngineTest.emptyRepositoryDoesNotCrash_B20`. v1 itself is unchanged.
+- **Lesson:** `x.get(k, {})` is not null-safe in Python, and a blanket `except` turns crashes into silent data loss.
+
+### B21
+**Phase 4 branch created from a stale `main`** · Phase 4 · Process
+- **Symptom:** the Phase 3 test fixture was missing on the new branch.
+- **Root cause:** local `main` was 4 commits behind `origin/main` (the PR #2 merge wasn't pulled), and the branch was created from the Phase 3 branch tip instead of the merge. The checkout had also changed between commands (likely IDE git activity during the merge).
+- **Fix:** fast-forwarded `main` (`git merge --ff-only origin/main`) and recreated the branch from `origin/main` before any commits.
+- **Lesson:** before branching, verify `git rev-parse --abbrev-ref HEAD` and `git status -sb` show `main` level with `origin/main`.
+
+### B22
+**`reference to assertThat is ambiguous`** · Phase 4 · Test code
+- **Root cause:** `JsonMapper.valueToTree(...)` returns a generic `<T extends JsonNode> T`. Passed straight to AssertJ's overloaded `assertThat`, the compiler can't infer `T` (both `Predicate` and `IntPredicate` overloads match).
+- **Fix:** assign the result to a `JsonNode` variable first.
+
+### B23
+**`./mvnw test` would apply unreviewed Flyway migrations to the live Neon DB** · Phase 4 · Process (latent, caught before it happened)
+- **Found by:** about to run the full suite after adding `V2__archetype_classes.sql`. `InsightshubApplicationTests.contextLoads()` is a `@SpringBootTest` that starts the whole app with the real datasource, so Flyway would migrate Neon as a side effect of running the tests.
+- **Risk:** a migration applied before review can't be changed afterwards. Flyway checksums applied migrations and refuses to start when a file differs, which forces a `flyway repair` or a fix-up migration.
+- **Workaround (this PR):** ran the unit tests with `-Dtest='!InsightshubApplicationTests'`, and dry-ran V2 on Neon inside `BEGIN … ROLLBACK` (Postgres DDL is transactional), so nothing was committed. A local Docker Postgres wasn't usable (no permission on `/var/run/docker.sock`).
+- **Proper fix (Phase 14):** Testcontainers + `@ServiceConnection`, so tests never touch Neon. Until then, exclude `contextLoads` when a PR adds a migration.
+- **Lesson:** a "does the context load?" test against a shared database isn't harmless: it runs every startup side effect, migrations included.
+
+### B24
+**Renaming enum constants broke `DevDataRunner`** · Phase 4 · Code
+- **Symptom:** `cannot find symbol: variable CODE_CRUSADER` in `dev/DevDataRunner.java` after replacing the archetypes.
+- **Root cause:** the dev runner hard-codes an archetype, and only the `insights` package had been searched for usages.
+- **Fix:** use `Archetype.PALADIN`, the same mapping as the V2 migration (`CODE_CRUSADER → PALADIN`).
+- **Lesson:** after renaming or removing an enum constant, grep the whole source tree, including `dev`/profile-only code that normal tests don't exercise.
