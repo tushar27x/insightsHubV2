@@ -29,6 +29,10 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 | [B22](#b22) | 4 | `reference to assertThat is ambiguous` with Jackson's `valueToTree` | Test code |
 | [B23](#b23) | 4 | `./mvnw test` would apply unreviewed Flyway migrations to the live Neon DB | Process (latent) |
 | [B24](#b24) | 4 | Renaming enum constants broke `DevDataRunner` (`cannot find symbol CODE_CRUSADER`) | Code |
+| [B25](#b25) | 5 | `NoClassDefFoundError` for a class that had just compiled (IntelliJ build racing Maven) | Tooling |
+| [B26](#b26) | 5 | **v1 + v2:** Groq retired `llama-3.3-70b-versatile` / `llama-3.1-8b-instant` (404) | Dependency (external) |
+| [B27](#b27) | 5 | Reasoning model spent all of `max_tokens` thinking and returned empty content | Config |
+| [B28](#b28) | 5 | The LLM assumed a user's gender ("He") in generated text | Prompt |
 
 ---
 
@@ -184,3 +188,34 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Root cause:** the dev runner hard-codes an archetype, and only the `insights` package had been searched for usages.
 - **Fix:** use `Archetype.PALADIN`, the same mapping as the V2 migration (`CODE_CRUSADER → PALADIN`).
 - **Lesson:** after renaming or removing an enum constant, grep the whole source tree, including `dev`/profile-only code that normal tests don't exercise.
+
+### B25
+**`NoClassDefFoundError: com/tushar27x/insightshub/ai/AiConfig`** · Phase 5 · Tooling
+- **Symptom:** live tests failed before any HTTP call, for a class that compiled fine. `target/classes/.../AiConfig.class` existed right afterwards.
+- **Root cause:** IntelliJ was open and rebuilt the just-edited `AiConfig.java` into the same `target/classes` while Maven's test JVM was running. Timestamps: test report `13:22:10.706`, class file rewritten `13:22:10.989`. The file was briefly missing.
+- **Fix:** rerun. Nothing in the code.
+- **Happened again** with resources during the persona change: `FileNotFoundException: prompts/weekly-review.st` for a file that was in `src/` and showed up in `target/classes` right after the run (IntelliJ copied it at `14:26:11`). Rerunning fixed it.
+- **Lesson:** an IDE and Maven sharing `target/` can race. If a "class not found" makes no sense, compare timestamps before debugging code. (Optional: in IntelliJ, delegate build/run to Maven, or turn off "Build project automatically".)
+
+### B26
+**Groq retired v1's models: `404: The model 'llama-3.3-70b-versatile' does not exist or you do not have access to it`** · Phase 5 · Dependency (external)
+- **Found by:** the first live run of `AiLiveTest`. The key was valid (a fake key gets `401`, the real one got `404` for the model).
+- **Root cause:** `GET /openai/v1/models` for the key lists no Llama 3.x chat models any more: only `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b` and a few non-chat models.
+- **Impact on v1 production:** v1 hard-codes both model names, and its `except` blocks fall back to Gemini, then to static text. Unless its Gemini fallback works, **v1 users currently get "Your code is so average it didn't even trigger my fallback circuits"** instead of real reviews, with no error visible.
+- **Fix (v2):** `spring.ai.openai.chat.options.model: openai/gpt-oss-120b`, `insightshub.ai.fast-model: openai/gpt-oss-20b`. Model names live in config, not code.
+- **Lesson:** hosted model names are not stable. Keep them in config, and have a live smoke test (and, later, an alert) for "every answer is a fallback".
+
+### B27
+**Reasoning model returned empty content (`finish_reason: length`)** · Phase 5 · Config
+- **Symptom:** a direct call to `openai/gpt-oss-20b` with v1's 200-token cap used 198 tokens on hidden reasoning and returned `""`. The chain treats blank as a failure, so every repo summary would have silently become the default text.
+- **Root cause:** reasoning tokens count against `max_tokens`. v1's caps (100–300) were sized for non-reasoning Llama.
+- **Fix:** per-provider `reasoning_effort: low` (`insightshub.ai.reasoning-effort`), and `LlmChain.REASONING_HEADROOM` (+300 tokens) when an effort is set. It's per provider because non-reasoning fallback models may reject the parameter.
+- **Lesson:** when switching to a reasoning model, retune token limits; "answer length" and "token budget" are no longer the same thing.
+
+### B28
+**The LLM assumed a user's gender** · Phase 5 · Prompt
+- **Symptom:** live character-sheet lore for `octocat`: "He shows up every workday...".
+- **Root cause:** v1's persona said nothing about how to refer to the developer, and these texts describe real users.
+- **Fix:** persona line: address the developer as "you" or by login; use "they" if a pronoun is needed. The rerun said "They've been glued to the terminal...".
+- **Lesson:** review generated text about real people for assumptions, not only for format.
+
