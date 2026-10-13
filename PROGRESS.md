@@ -51,8 +51,8 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 2 | Data model for v2 (JPA), steps 1–5 | 🧑 | ✅ | |
 | 2.6 | `V3__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
-| 4 | Insights engine (pure Java + first tests) | 🤖 | 👀 in review | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
-| 5 | AI layer with Spring AI | 🤖 | 👀 in review | |
+| 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
+| 5 | AI layer with Spring AI | 🤖 | 👀 in review | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ⬜ | |
 | 7 | Sync orchestration & Redis caching | 🤖 | ⬜ | |
 | 8 | Rate limiting | 🤖 | ⬜ | |
@@ -194,7 +194,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 4: Insights engine (pure Java + first tests) 👀
+## Phase 4: Insights engine (pure Java + first tests) ✅
 
 **v1 reference:** `services/insights_service.py` (`calculate_user_insights`, `determine_archetype`)
 
