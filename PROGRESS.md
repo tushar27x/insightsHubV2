@@ -56,7 +56,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ✅ | [#6](https://github.com/tushar27x/insightsHubV2/pull/6) |
-| 7 | Sync orchestration & Redis caching | 🤖 | 👀 | [#7](https://github.com/tushar27x/insightsHubV2/pull/7) |
+| 7 | Sync orchestration & Redis caching | 🤖 | ✅ | [#7](https://github.com/tushar27x/insightsHubV2/pull/7) |
 | 8 | Rate limiting | 🤖 | ⬜ | |
 | 9 | Errors, validation, logging | 🤖 | ⬜ | |
 | | **Part B: New v2 features** | | | |
@@ -69,7 +69,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🧑 review Phase 7 (incl. the V3 migration) · 🤖 Phase 8 (Rate limiting) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
+**Next up:** live check of Phase 7 (first app start applies V3) · 🤖 Phase 8 (Rate limiting) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
 
 ---
 
@@ -285,7 +285,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 7: Sync orchestration & Redis caching 👀
+## Phase 7: Sync orchestration & Redis caching ✅
 
 **v1 reference:** the big body of `callback()` + `get_user_insights()` in `routes.py`
 
@@ -305,7 +305,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
    - Gemini fallback is untested against the real endpoint: needs `GEMINI_API_KEY` (and maybe `GEMINI_MODEL`).
 
 **Done when**
-- [ ] Second `GET /user/insights` is served from Redis (check with `redis-cli KEYS 'v2:*'`). Proven with an in-memory cache in `InsightsCacheTest`; live check after the migration review
+- [ ] Second `GET /user/insights` is served from Redis (check with `redis-cli KEYS 'v2:*'`). Proven with an in-memory cache in `InsightsCacheTest`; live check pending
 - [x] A fresh sync evicts the cache (`InsightsCacheTest`)
 
 ---
@@ -564,4 +564,5 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Phase 5 follow-ups: provider timeouts 20 s (2 attempts × 20 s × 2 providers = 80 s < 90 s task timeout; startup warning if the budget is exceeded); token usage logged per LLM call (`LlmChain.text`/`entity` keep the `ChatResponse`); commit messages marked as untrusted in `craft-review.st`. Gemini fallback still untested live (needs `GEMINI_API_KEY`).
 - Tests: 8 sync + 3 writer + 3 cache (real `@Cacheable`/`@CacheEvict` through Spring proxies, in-memory cache) + 2 Redis config (JSON round trip, TTL, prefix) + 5 refresh endpoint + 2 login-sync + 1 token usage. The atomic `claimSync` query needs a real database to test (Phase 14, Testcontainers). Booted the app with Flyway off to check the wiring and the JPQL without touching Neon.
 - Bug log: B32, B33.
-- **Before the live check (developer):** review `V3__insights_sync_columns.sql`; the next app start applies it to Neon (B23). Then log in (first sync), call `GET /api/user/insights` twice, and `POST /api/user/sync` twice (the second one: 429).
+- PR #7 merged (`81ed7c0`).
+- **Live check:** review `V3__insights_sync_columns.sql`; the next app start applies it to Neon (B23). Then log in (first sync), call `GET /api/user/insights` twice, and `POST /api/user/sync` twice (the second one: 429).
