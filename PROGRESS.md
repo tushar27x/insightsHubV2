@@ -57,7 +57,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ✅ | [#6](https://github.com/tushar27x/insightsHubV2/pull/6) |
 | 7 | Sync orchestration & Redis caching | 🤖 | ✅ | [#7](https://github.com/tushar27x/insightsHubV2/pull/7) |
-| 8 | Rate limiting | 🤖 | 👀 | [#8](https://github.com/tushar27x/insightsHubV2/pull/8) |
+| 8 | Rate limiting | 🤖 | ✅ | [#8](https://github.com/tushar27x/insightsHubV2/pull/8) |
 | 9 | Errors, validation, logging | 🤖 | ⬜ | |
 | | **Part B: New v2 features** | | | |
 | 10 | Scheduled daily sync & activity history | 🧑 | ⬜ | |
@@ -69,7 +69,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🧑 review Phase 8 · 🤖 Phase 9 (Errors, validation, logging) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
+**Next up:** 🤖 Phase 9 (Errors, validation, logging; the last port phase) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
 
 ---
 
@@ -310,7 +310,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 8: Rate limiting 👀
+## Phase 8: Rate limiting ✅
 
 **v1 reference:** `RateLimiter(times=5, seconds=60)` on auth routes, 20/60s on insights
 
@@ -577,4 +577,16 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Tests: 6 Redis limiter (mocked Redis: decisions, key/window, fail open) + 6 interceptor slice (6th login → 429, per IP, `X-Forwarded-For` ignored, per user, bad token not counted, unannotated endpoints free) + 3 policy check + 5 sync gates. The Lua script ran live: 6th login → 429 `Retry-After: 60`, key `v2:rl:login:ip:0:0:0:0:0:0:0:1` with count 6 and a TTL.
 - No new bugs.
 - For Phase 9: the 429 body is a `ProblemDetail` without `instance`; the error handler there should produce the same shape for every error.
+- PR #8 merged (`a51a427`).
 
+### 2026-10-14: End of session
+- Merged today: #5 (Phase 5 docs), #6 (Phase 6, auth), #7 (Phase 7, sync + cache), #8 (Phase 8, rate limiting). The port is done except Phase 9.
+- Also on `main`: agent instructions made tool-agnostic (`AGENTS.md`, imported by `CLAUDE.md`); Neon agent skills `neon` and `neon-postgres` in `.claude/skills/` (Claude Code only), pinned in `skills-lock.json`.
+- Live checks passed for Phases 6, 7 and 8 against Neon, Redis, GitHub and Groq.
+- Open for the developer:
+  - Phase 2.6: `V4__activity.sql` (needed by Phase 10).
+  - Archetype calibration questions (Phase 5 log), now including "recalibrate on public-only data?" (Phase 7 finding).
+  - v1 production: B26 (retired Groq models) and B30 (GitHub tokens in v1's logs).
+  - GitGuardian: resolve the two B31 incidents as test credentials.
+  - Groq plan limits, to replace the `sync-global: 30/min` placeholder.
+- Next session: Phase 9 (errors as `ProblemDetail` everywhere, validation, logging; no secrets in logs).
