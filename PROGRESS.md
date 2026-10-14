@@ -27,6 +27,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | Frontend | **Out of scope.** v2 is backend-only; test with HTTP client files / OpenAPI UI |
 | RAG "Ask your Manager" (pgvector) | Stretch goal. pgvector starter stays in the pom, switched off |
 | Database | Production Neon DB + remote Redis for dev (only the owner's data exists) |
+| Sync cooldown (2026-10-14) | **Users can refresh at most every 10 minutes** (`POST /api/user/sync`, and login), instead of v1's 7-day login-only rule. GitHub isn't the limit (the sync uses the user's own token; the query costs 1 point). The shared cost is the 5 LLM calls per sync on the app's Groq key |
 | GitHub scopes (2026-10-14) | **`read:user user:email`, no `repo`.** The token is stored for the daily sync, so a leak must not grant write access to private repos. Trade-off: private repos are invisible; private contributions still count in the calendar (as `restrictedContributionsCount`) |
 
 **Workflow (2026-10-13)**
@@ -319,6 +320,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 1. Create a `@RateLimit(requests = 5, seconds = 60)` annotation for controller methods.
 2. In a `HandlerInterceptor`, check `handler instanceof HandlerMethod`, read the annotation, and build a key `rl:{ip-or-userId}:{route}`. Use Redis `INCR`, and set `EXPIRE` on the first hit. If the count is over the limit, return 429.
 3. Alternative: the Bucket4j library (token bucket). Build your own first, then compare.
+4. `POST /api/user/sync` already has a per-user 10-minute cooldown (Phase 7, in the domain logic). What's left is the **shared** LLM quota: every sync makes 5 calls on the app's Groq key, so consider a global cap on syncs per minute.
 
 **Done when**
 - [ ] The 6th login within 60s returns 429 with a `Retry-After` header
@@ -555,11 +557,11 @@ One entry per session: what was built, what was learned, open questions. Bug det
 
 ### 2026-10-14: Phase 7 built (🤖)
 - `sync` package: `SyncService` (decrypt token → GraphQL → `InsightsEngine` → `AiInsightsService` → write; only needs a user id, so Phase 10 can call it), `InsightsWriter` (the short `@Transactional` + `@CacheEvict` write, in its own bean because a call from inside the same class skips Spring's proxy), `SyncProperties`.
-- Login calls `syncIfStale`: data younger than `insightshub.sync.login-stale-after` (7 d, as in v1) is reused. Like v1, a failed sync is logged and the login still succeeds. GitHub 401 → `needs_reauth` (Phase 10 skips those users).
+- **Refresh every 10 minutes** (developer's review, replaces v1's 7-day rule): `POST /api/user/sync` and login both call `syncIfDue`, which first claims the cooldown with one atomic `UPDATE users SET sync_requested_at = now WHERE ... sync_requested_at < now - 10m` (`insightshub.sync.min-interval`). Double clicks can't start two syncs, and a failing sync still counts. Responses: 200 with fresh insights, 429 + `Retry-After` during the cooldown, 409 when GitHub revoked the token, 502 when GitHub is down. Like v1, a failed sync at login is logged and the login still succeeds. GitHub 401 → `needs_reauth` (Phase 10 skips those users).
 - Read side: `InsightsQueryService.getInsights` with `@Cacheable("user_insights")`. Redis via `RedisCacheManagerBuilderCustomizer`: 24 h TTL, typed JSON serializer for the record (no Java class names), key prefix `v2:` (v1 shares this Redis), null values not cached, transaction-aware (evict after commit).
-- `V3__insights_sync_columns.sql`: `roast` → `year_in_review`; new `repo_summaries`, `character_title`, `character_lore`, `archetype_scores` (for Phase 13), `algo_version`. **The developer's activity migration becomes `V4__activity.sql`.**
+- `V3__insights_sync_columns.sql`: `roast` → `year_in_review`; new `repo_summaries`, `character_title`, `character_lore`, `archetype_scores` (for Phase 13), `algo_version`; `users.sync_requested_at` (cooldown). **The developer's activity migration becomes `V4__activity.sql`.**
 - `GET /api/user/insights` response: v1 keys plus `archetype_scores`, `year_in_review`, `repo_summaries`, `character_sheet` (v1's `display_json` is gone with the roast).
 - Phase 5 follow-ups: provider timeouts 20 s (2 attempts × 20 s × 2 providers = 80 s < 90 s task timeout; startup warning if the budget is exceeded); token usage logged per LLM call (`LlmChain.text`/`entity` keep the `ChatResponse`); commit messages marked as untrusted in `craft-review.st`. Gemini fallback still untested live (needs `GEMINI_API_KEY`).
-- Tests: 8 sync + 3 writer + 3 cache (real `@Cacheable`/`@CacheEvict` through Spring proxies, in-memory cache) + 2 Redis config (JSON round trip, TTL, prefix) + 2 login-sync + 1 token usage. Booted the app with Flyway off to check the wiring without touching Neon.
+- Tests: 8 sync + 3 writer + 3 cache (real `@Cacheable`/`@CacheEvict` through Spring proxies, in-memory cache) + 2 Redis config (JSON round trip, TTL, prefix) + 5 refresh endpoint + 2 login-sync + 1 token usage. The atomic `claimSync` query needs a real database to test (Phase 14, Testcontainers). Booted the app with Flyway off to check the wiring and the JPQL without touching Neon.
 - Bug log: B32.
-- **Before the live check (developer):** review `V3__insights_sync_columns.sql`; the next app start applies it to Neon (B23). Then log in again (or set `last_synced_at` to NULL) and call `/api/user/insights` twice.
+- **Before the live check (developer):** review `V3__insights_sync_columns.sql`; the next app start applies it to Neon (B23). Then log in (first sync), call `GET /api/user/insights` twice, and `POST /api/user/sync` twice (the second one: 429).
