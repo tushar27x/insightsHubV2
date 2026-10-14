@@ -563,5 +563,5 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - `GET /api/user/insights` response: v1 keys plus `archetype_scores`, `year_in_review`, `repo_summaries`, `character_sheet` (v1's `display_json` is gone with the roast).
 - Phase 5 follow-ups: provider timeouts 20 s (2 attempts × 20 s × 2 providers = 80 s < 90 s task timeout; startup warning if the budget is exceeded); token usage logged per LLM call (`LlmChain.text`/`entity` keep the `ChatResponse`); commit messages marked as untrusted in `craft-review.st`. Gemini fallback still untested live (needs `GEMINI_API_KEY`).
 - Tests: 8 sync + 3 writer + 3 cache (real `@Cacheable`/`@CacheEvict` through Spring proxies, in-memory cache) + 2 Redis config (JSON round trip, TTL, prefix) + 5 refresh endpoint + 2 login-sync + 1 token usage. The atomic `claimSync` query needs a real database to test (Phase 14, Testcontainers). Booted the app with Flyway off to check the wiring and the JPQL without touching Neon.
-- Bug log: B32.
+- Bug log: B32, B33.
 - **Before the live check (developer):** review `V3__insights_sync_columns.sql`; the next app start applies it to Neon (B23). Then log in (first sync), call `GET /api/user/insights` twice, and `POST /api/user/sync` twice (the second one: 429).
