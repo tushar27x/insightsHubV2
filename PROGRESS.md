@@ -55,7 +55,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ✅ | [#6](https://github.com/tushar27x/insightsHubV2/pull/6) |
-| 7 | Sync orchestration & Redis caching | 🤖 | 👀 | |
+| 7 | Sync orchestration & Redis caching | 🤖 | 👀 | [#7](https://github.com/tushar27x/insightsHubV2/pull/7) |
 | 8 | Rate limiting | 🤖 | ⬜ | |
 | 9 | Errors, validation, logging | 🤖 | ⬜ | |
 | | **Part B: New v2 features** | | | |
