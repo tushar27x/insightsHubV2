@@ -36,6 +36,7 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 | [B29](#b29) | 6 | `@EnableConfigurationProperties` on a `@WebMvcTest` class was ignored: "No qualifying bean of type InsightsHubProperties" | Test code |
 | [B30](#b30) | 6 | **v1:** the OAuth callback prints every user's GitHub access token to the logs | Security (v1) |
 | [B31](#b31) | 6 | GitGuardian flagged two fake test AES keys as leaked secrets | Process |
+| [B32](#b32) | 7 | `RedisCacheManagerBuilderCustomizer` not on the classpath: Boot 4 moved caching into its own starter | Dependency |
 
 ---
 
@@ -243,3 +244,10 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Root cause:** the test keys were 44-character Base64 literals in fields named `*_ENCRYPTION_KEY`. They were made up (one decodes to the bytes 0–31), and no `.env` value appears anywhere in the PR (checked value by value), but a scanner can't tell a fake key from a real one.
 - **Fix:** test keys are built at runtime from byte sequences; `AuthApiTest` gets its key through `@DynamicPropertySource`. Folded into the feat commit and force-pushed, so the literals never appear in the branch history. The two existing incidents still need resolving as test credentials in the GitGuardian dashboard.
 - **Lesson:** never write key-shaped literals, even fake ones; generate test keys in code. When a scanner fires, first check whether any real value leaked before rewriting anything.
+
+### B32
+**`RedisCacheManagerBuilderCustomizer` not found** · Phase 7 · Dependency
+- **Symptom:** the class Boot 3 docs point to (`org.springframework.boot.autoconfigure.cache`) wasn't in any jar on the classpath, although Redis and Spring's `@Cacheable` were.
+- **Root cause:** Boot 4 split auto-configuration into modules. Cache auto-configuration (including the Redis cache manager) now lives in `spring-boot-cache`, brought in by `spring-boot-starter-cache`, under `org.springframework.boot.cache.autoconfigure`. `spring-boot-starter-data-redis` alone no longer gives you a `CacheManager`.
+- **Fix:** add `spring-boot-starter-cache`, plus `spring.cache.type: redis` so a missing Redis cache fails at startup instead of silently falling back to an in-memory cache.
+- **Lesson:** on Boot 4, when a Boot 3 class is missing, look for a `spring-boot-<feature>` module and its starter (same story as B19).

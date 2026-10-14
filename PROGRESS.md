@@ -50,12 +50,12 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 0 | Setup, infra & config | 🧑 | ✅ | |
 | 1 | First endpoint: health ping | 🧑 | ✅ | |
 | 2 | Data model for v2 (JPA), steps 1–5 | 🧑 | ✅ | |
-| 2.6 | `V3__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
+| 2.6 | `V4__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ✅ | [#6](https://github.com/tushar27x/insightsHubV2/pull/6) |
-| 7 | Sync orchestration & Redis caching | 🤖 | ⬜ | |
+| 7 | Sync orchestration & Redis caching | 🤖 | 👀 | |
 | 8 | Rate limiting | 🤖 | ⬜ | |
 | 9 | Errors, validation, logging | 🤖 | ⬜ | |
 | | **Part B: New v2 features** | | | |
@@ -68,7 +68,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 Phase 7 (Sync & caching) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
+**Next up:** 🧑 review Phase 7 (incl. the V3 migration) · 🤖 Phase 8 (Rate limiting) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
 
 ---
 
@@ -284,7 +284,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 7: Sync orchestration & Redis caching ⬜
+## Phase 7: Sync orchestration & Redis caching 👀
 
 **v1 reference:** the big body of `callback()` + `get_user_insights()` in `routes.py`
 
@@ -304,8 +304,8 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
    - Gemini fallback is untested against the real endpoint: needs `GEMINI_API_KEY` (and maybe `GEMINI_MODEL`).
 
 **Done when**
-- [ ] Second `GET /user/insights` is served from Redis (check with `redis-cli KEYS *`)
-- [ ] A fresh sync evicts the cache
+- [ ] Second `GET /user/insights` is served from Redis (check with `redis-cli KEYS 'v2:*'`). Proven with an in-memory cache in `InsightsCacheTest`; live check after the migration review
+- [x] A fresh sync evicts the cache (`InsightsCacheTest`)
 
 ---
 
@@ -552,3 +552,14 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Bug log: B29, B30 (v1 logs every user's GitHub token).
 - PR #6 merged (`a4922cb`). GitGuardian flagged fake test keys (B31); fixed and history rewritten before merge.
 - Live check passed (2026-10-14) with a dedicated OAuth App (callback `http://localhost:8080/api/auth/callback`; the first try failed with GitHub's "redirect_uri is not associated with this application" until the callback URL matched exactly). Stored token decrypts, `GET /user` returns 200 with the matching id, granted scopes are `read:user, user:email`, and decrypting with another owner id is rejected.
+
+### 2026-10-14: Phase 7 built (🤖)
+- `sync` package: `SyncService` (decrypt token → GraphQL → `InsightsEngine` → `AiInsightsService` → write; only needs a user id, so Phase 10 can call it), `InsightsWriter` (the short `@Transactional` + `@CacheEvict` write, in its own bean because a call from inside the same class skips Spring's proxy), `SyncProperties`.
+- Login calls `syncIfStale`: data younger than `insightshub.sync.login-stale-after` (7 d, as in v1) is reused. Like v1, a failed sync is logged and the login still succeeds. GitHub 401 → `needs_reauth` (Phase 10 skips those users).
+- Read side: `InsightsQueryService.getInsights` with `@Cacheable("user_insights")`. Redis via `RedisCacheManagerBuilderCustomizer`: 24 h TTL, typed JSON serializer for the record (no Java class names), key prefix `v2:` (v1 shares this Redis), null values not cached, transaction-aware (evict after commit).
+- `V3__insights_sync_columns.sql`: `roast` → `year_in_review`; new `repo_summaries`, `character_title`, `character_lore`, `archetype_scores` (for Phase 13), `algo_version`. **The developer's activity migration becomes `V4__activity.sql`.**
+- `GET /api/user/insights` response: v1 keys plus `archetype_scores`, `year_in_review`, `repo_summaries`, `character_sheet` (v1's `display_json` is gone with the roast).
+- Phase 5 follow-ups: provider timeouts 20 s (2 attempts × 20 s × 2 providers = 80 s < 90 s task timeout; startup warning if the budget is exceeded); token usage logged per LLM call (`LlmChain.text`/`entity` keep the `ChatResponse`); commit messages marked as untrusted in `craft-review.st`. Gemini fallback still untested live (needs `GEMINI_API_KEY`).
+- Tests: 8 sync + 3 writer + 3 cache (real `@Cacheable`/`@CacheEvict` through Spring proxies, in-memory cache) + 2 Redis config (JSON round trip, TTL, prefix) + 2 login-sync + 1 token usage. Booted the app with Flyway off to check the wiring without touching Neon.
+- Bug log: B32.
+- **Before the live check (developer):** review `V3__insights_sync_columns.sql`; the next app start applies it to Neon (B23). Then log in again (or set `last_synced_at` to NULL) and call `/api/user/insights` twice.
