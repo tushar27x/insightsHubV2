@@ -33,6 +33,9 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 | [B26](#b26) | 5 | **v1 + v2:** Groq retired `llama-3.3-70b-versatile` / `llama-3.1-8b-instant` (404) | Dependency (external) |
 | [B27](#b27) | 5 | Reasoning model spent all of `max_tokens` thinking and returned empty content | Config |
 | [B28](#b28) | 5 | The LLM assumed a user's gender ("He") in generated text | Prompt |
+| [B29](#b29) | 6 | `@EnableConfigurationProperties` on a `@WebMvcTest` class was ignored: "No qualifying bean of type InsightsHubProperties" | Test code |
+| [B30](#b30) | 6 | **v1:** the OAuth callback prints every user's GitHub access token to the logs | Security (v1) |
+| [B31](#b31) | 6 | GitGuardian flagged two fake test AES keys as leaked secrets | Process |
 
 ---
 
@@ -219,3 +222,24 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Fix:** persona line: address the developer as "you" or by login; use "they" if a pronoun is needed. The rerun said "They've been glued to the terminal...".
 - **Lesson:** review generated text about real people for assumptions, not only for format.
 
+### B29
+**`No qualifying bean of type 'InsightsHubProperties'` in `AuthApiTest`** · Phase 6 · Test code
+- **Symptom:** all 12 `@WebMvcTest` tests failed to load the context. Adding `@EnableConfigurationProperties` to the test class changed nothing.
+- **Root cause:** a slice test only registers the slice's beans; the main class's `@ConfigurationPropertiesScan` doesn't apply. And annotations on the test class itself are not read as configuration, so `@EnableConfigurationProperties` there is ignored.
+- **Fix:** a nested `@TestConfiguration` carrying `@EnableConfigurationProperties({InsightsHubProperties.class, AuthProperties.class})`, added to `@Import`.
+- **Lesson:** in slice tests, put configuration on a `@TestConfiguration` class, never on the test class.
+
+### B30
+**v1 logs every user's GitHub access token** · Phase 6 · Security (v1)
+- **Found by:** porting v1's callback (`app/api/routes.py`, line 102): `print("GitHub token response:", token_data)`. `token_data` is GitHub's token response, including `access_token` (scope `repo`: read/write to private repos).
+- **Impact on v1 production:** every login writes a live token to the host's logs, readable by anyone with log access.
+- **Fix (v2):** tokens never appear in logs or exception messages. The token exchange error carries only GitHub's `error` code (e.g. `bad_verification_code`). Tests assert the token isn't in error messages or the JWT.
+- **Fix (v1, suggested):** delete the `print` line, and treat the logged tokens as leaked: users can revoke at github.com/settings/applications, or the OAuth App's tokens can be reset in its settings.
+- **Lesson:** never log whole responses from auth endpoints; log the fields you need.
+
+### B31
+**GitGuardian: "Generic Encryption Key" in `SecurityTestData.java`** · Phase 6 · Process
+- **Symptom:** the GitGuardian check failed on PR #6 with 2 incidents.
+- **Root cause:** the test keys were 44-character Base64 literals in fields named `*_ENCRYPTION_KEY`. They were made up (one decodes to the bytes 0–31), and no `.env` value appears anywhere in the PR (checked value by value), but a scanner can't tell a fake key from a real one.
+- **Fix:** test keys are built at runtime from byte sequences; `AuthApiTest` gets its key through `@DynamicPropertySource`. Folded into the feat commit and force-pushed, so the literals never appear in the branch history. The two existing incidents still need resolving as test credentials in the GitGuardian dashboard.
+- **Lesson:** never write key-shaped literals, even fake ones; generate test keys in code. When a scanner fires, first check whether any real value leaked before rewriting anything.
