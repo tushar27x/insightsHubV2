@@ -31,17 +31,17 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 **Workflow (2026-10-13)**
 | Topic | Decision |
 |---|---|
-| Port (phases 3–9) | Implemented by Claude, **one PR per phase** against `main`, reviewed and merged by the developer |
-| v2 features (2.6, 10–13) | Implemented by the developer; Claude reviews and gives hints |
-| Attribution | No Claude co-author lines in commits, no Claude footer in PR descriptions |
+| Port (phases 3–9) | Implemented by the AI agent, **one PR per phase** against `main`, reviewed and merged by the developer |
+| v2 features (2.6, 10–13) | Implemented by the developer; the AI agent reviews and gives hints |
+| Attribution | No AI-agent co-author lines in commits, no "generated with" footer in PR descriptions |
 | Bugs | Every bug is logged in [`BUGS.md`](BUGS.md); PR descriptions list the bugs found in that phase; the developer is kept informed while debugging |
-| Archetype scoring | Built by Claude in PR #3 after the developer's review (code scores the class; the LLM only adds flavour in Phase 5). Phase 13 keeps the leaderboards |
+| Archetype scoring | Built by the AI agent in PR #3 after the developer's review (code scores the class; the LLM only adds flavour in Phase 5). Phase 13 keeps the leaderboards |
 
 ---
 
 ## Current status
 
-**Owner:** 🤖 Claude implements and opens a PR for review · 🧑 developer implements, Claude reviews
+**Owner:** 🤖 AI agent implements and opens a PR for review · 🧑 developer implements, AI agent reviews
 
 | Phase | Title | Owner | Status | PR |
 |------:|-------|:-----:|:------:|:--:|
@@ -476,7 +476,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 One entry per session: what was built, what was learned, open questions. Bug details live in [`BUGS.md`](BUGS.md) (B-numbers).
 
 ### 2026-09-27: Kickoff
-- Scanned the v1 backend (`~/dev/insight_hub/server`) and the v2 skeleton; created this roadmap and `.claude/CLAUDE.md`.
+- Scanned the v1 backend (`~/dev/insight_hub/server`) and the v2 skeleton; created this roadmap and the agent instructions file (now `AGENTS.md`, imported by `CLAUDE.md`).
 
 ### 2026-09-27: Phase 0 complete ✅
 - Spring AI 2.0.0 on Boot 4 (B1). `.env` loaded with `spring.config.import` (B4). `@Validated` record `InsightsHubProperties` (B2, B3) fails fast on blank values. `.gitignore` covers secrets (B5).
@@ -503,9 +503,9 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Rules learned: DB defaults don't apply to explicit NULLs; `save()` persists or merges based on the id, so load existing rows before updating; never return entities from controllers (DTOs only).
 
 ### 2026-10-13: Working agreement changed
-- **Port (phases 3–9):** implemented by Claude, one PR per phase for the developer to review.
-- **Phase 2 step 6 and v2 features (phases 10–13):** implemented by the developer, with Claude reviewing and hinting.
-- No Claude attribution in commits or PR descriptions. Bugs are logged in `BUGS.md`, and each PR lists the bugs found while building it.
+- **Port (phases 3–9):** implemented by the AI agent, one PR per phase for the developer to review.
+- **Phase 2 step 6 and v2 features (phases 10–13):** implemented by the developer, with the AI agent reviewing and hinting.
+- No AI-agent attribution in commits or PR descriptions. Bugs are logged in `BUGS.md`, and each PR lists the bugs found while building it.
 
 ### 2026-10-13: Phase 3 built (🤖)
 - `github` package: `GitHubGraphQlClient` (`fetchUserInsights(token, login[, from, to])`), `GitHubClientConfig` (`RestClient` with base URL + `User-Agent`), typed records in `github.model`, `GitHubApiException` / `GitHubAuthException` (401, for Phase 10's `needs_reauth`). `Clock` bean in `config/ClockConfig`.
