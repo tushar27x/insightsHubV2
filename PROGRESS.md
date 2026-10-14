@@ -54,7 +54,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
-| 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | 👀 | [#6](https://github.com/tushar27x/insightsHubV2/pull/6) |
+| 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ✅ | [#6](https://github.com/tushar27x/insightsHubV2/pull/6) |
 | 7 | Sync orchestration & Redis caching | 🤖 | ⬜ | |
 | 8 | Rate limiting | 🤖 | ⬜ | |
 | 9 | Errors, validation, logging | 🤖 | ⬜ | |
@@ -68,7 +68,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🧑 review Phase 6 + live login check · 🤖 Phase 7 (Sync & caching) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
+**Next up:** 🧑 live login check (OAuth App + `.env`) · 🤖 Phase 7 (Sync & caching) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
 
 ---
 
@@ -258,7 +258,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 6: Auth: GitHub OAuth + JWT, stored token & email 👀
+## Phase 6: Auth: GitHub OAuth + JWT, stored token & email ✅
 
 **v1 reference:** `routes.py` (`/auth/login`, `/auth/callback`, `/auth/logout`), `core/security.py`
 
@@ -550,4 +550,5 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Health `show-details: when-authorized` (planned in Phase 1): anonymous callers only see `UP`/`DOWN`.
 - Tests: 8 cipher + 4 JWT + 7 OAuth client + 4 service + 12 web/security slice (`@WebMvcTest` with the real filter chain; one test does the whole login → JWT → `/api/user/insights` round trip). Booted the real app: health 200, insights 401, login 302 with public scopes, bad state 400.
 - Bug log: B29, B30 (v1 logs every user's GitHub token).
+- PR #6 merged (`a4922cb`). GitGuardian flagged fake test keys (B31); fixed and history rewritten before merge.
 - **To do for the live check (developer):** create a GitHub OAuth App (callback `http://localhost:8080/api/auth/callback`), add `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` to `.env`. Without them the app no longer starts (`@NotBlank`). Then open `/api/auth/login` in a browser.
