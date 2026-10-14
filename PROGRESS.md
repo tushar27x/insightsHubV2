@@ -69,7 +69,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** live check of Phase 7 (first app start applies V3) · 🤖 Phase 8 (Rate limiting) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
+**Next up:** 🤖 Phase 8 (Rate limiting) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
 
 ---
 
@@ -305,7 +305,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
    - Gemini fallback is untested against the real endpoint: needs `GEMINI_API_KEY` (and maybe `GEMINI_MODEL`).
 
 **Done when**
-- [ ] Second `GET /user/insights` is served from Redis (check with `redis-cli KEYS 'v2:*'`). Proven with an in-memory cache in `InsightsCacheTest`; live check pending
+- [x] Second `GET /user/insights` is served from Redis (`InsightsCacheTest`, and live on 2026-10-14: key `v2:user_insights::100276134`, TTL 24 h, plain snake_case JSON)
 - [x] A fresh sync evicts the cache (`InsightsCacheTest`)
 
 ---
@@ -541,7 +541,7 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Developer's review: drop the roast. The habit tracker needs encouragement, so the persona became a supportive senior engineer and the roast became a year in review. Checked live: each review names real strengths and ends with one concrete step.
 - PR #4 merged (`ce232bd`). Phase 5 follow-ups are listed in the Phase 7 hints.
 - Open questions for the developer:
-  - Archetype calibration: should Monk need small PRs as well as descriptive messages? Should zero activity stay Rogue?
+  - Archetype calibration: should Monk need small PRs as well as descriptive messages? Should zero activity stay Rogue? Recalibrate on public-only data (what users actually get, see Phase 7)?
   - v1 production still calls the retired Groq models (B26). Fix v1 (two model names in `ai_service.py`), or leave it until v2 replaces it?
 
 ### 2026-10-14: Phase 6 built (🤖)
@@ -565,4 +565,5 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Tests: 8 sync + 3 writer + 3 cache (real `@Cacheable`/`@CacheEvict` through Spring proxies, in-memory cache) + 2 Redis config (JSON round trip, TTL, prefix) + 5 refresh endpoint + 2 login-sync + 1 token usage. The atomic `claimSync` query needs a real database to test (Phase 14, Testcontainers). Booted the app with Flyway off to check the wiring and the JPQL without touching Neon.
 - Bug log: B32, B33.
 - PR #7 merged (`81ed7c0`).
-- **Live check:** review `V3__insights_sync_columns.sql`; the next app start applies it to Neon (B23). Then log in (first sync), call `GET /api/user/insights` twice, and `POST /api/user/sync` twice (the second one: 429).
+- **Live check passed (2026-10-14):** V3 applied by Flyway. Login → sync in 7.7 s (GitHub 3.8 s, 5 AI tasks in parallel 2.2 s, DB write 2.8 s: Neon is in us-east-2), about 3,600 LLM tokens per sync. Two `GET /api/user/insights`: 200 both, identical, the second from Redis (1.6 s → 0.7 s; both are remote). `POST /api/user/sync` during the cooldown: 429, `Retry-After: 451`.
+- **Finding:** the live sync made tushar27x a **Wizard (83)**, Artificer 0; the Phase 4 calibration said Monk 52 (Wizard 33, Artificer 33). Calibration used a personal token that also sees 5 private repos; the OAuth token is public-only (scope decision), so the top repos differ. Expected from the scope trade-off, but it changes archetypes noticeably.
