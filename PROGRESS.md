@@ -57,7 +57,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ✅ | [#6](https://github.com/tushar27x/insightsHubV2/pull/6) |
 | 7 | Sync orchestration & Redis caching | 🤖 | ✅ | [#7](https://github.com/tushar27x/insightsHubV2/pull/7) |
-| 8 | Rate limiting | 🤖 | ⬜ | |
+| 8 | Rate limiting | 🤖 | 👀 | |
 | 9 | Errors, validation, logging | 🤖 | ⬜ | |
 | | **Part B: New v2 features** | | | |
 | 10 | Scheduled daily sync & activity history | 🧑 | ⬜ | |
@@ -69,7 +69,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 Phase 8 (Rate limiting) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
+**Next up:** 🧑 review Phase 8 · 🤖 Phase 9 (Errors, validation, logging) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
 
 ---
 
@@ -310,7 +310,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 8: Rate limiting ⬜
+## Phase 8: Rate limiting 👀
 
 **v1 reference:** `RateLimiter(times=5, seconds=60)` on auth routes, 20/60s on insights
 
@@ -323,7 +323,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 4. `POST /api/user/sync` already has a per-user 10-minute cooldown (Phase 7, in the domain logic). What's left is the **shared** LLM quota: every sync makes 5 calls on the app's Groq key, so consider a global cap on syncs per minute.
 
 **Done when**
-- [ ] The 6th login within 60s returns 429 with a `Retry-After` header
+- [x] The 6th login within 60s returns 429 with a `Retry-After` header (`RateLimitApiTest`, and live on 2026-10-14)
 
 ---
 
@@ -567,3 +567,14 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - PR #7 merged (`81ed7c0`).
 - **Live check passed (2026-10-14):** V3 applied by Flyway. Login → sync in 7.7 s (GitHub 3.8 s, 5 AI tasks in parallel 2.2 s, DB write 2.8 s: Neon is in us-east-2), about 3,600 LLM tokens per sync. Two `GET /api/user/insights`: 200 both, identical, the second from Redis (1.6 s → 0.7 s; both are remote). `POST /api/user/sync` during the cooldown: 429, `Retry-After: 451`.
 - **Finding:** the live sync made tushar27x a **Wizard (83)**, Artificer 0; the Phase 4 calibration said Monk 52 (Wizard 33, Artificer 33). Calibration used a personal token that also sees 5 private repos; the OAuth token is public-only (scope decision), so the top repos differ. Expected from the scope trade-off, but it changes archetypes noticeably.
+
+### 2026-10-14: Phase 8 built (🤖)
+- `ratelimit` package: `@RateLimit(policy, key = IP | USER)` on controller methods; `RateLimitInterceptor` (a `HandlerInterceptor`, so it runs after Spring Security: bad JWTs get 401 before they count, and the user is known); `RedisRateLimiter` (fixed window: one Lua script does `INCR` + `PEXPIRE` atomically and re-adds a lost expiry); `RateLimitConfig` registers the interceptor and fails startup if an annotation names a policy missing from `insightshub.rate-limit.policies`.
+- Limits (configurable): login 5/min per IP, callback 5/min per IP (v1), insights 20/min per user (v1), **all syncs 30/min together** (`sync-global`, protects the shared Groq key). Over the limit: 429, `Retry-After` (seconds, rounded up), `X-RateLimit-Limit`/`-Remaining`, `ProblemDetail` JSON (the Phase 9 format).
+- Decisions (developer accepted the defaults): **fail open** when Redis is down (warning logged; Redis timeouts lowered from Lettuce's 60 s to 2 s so a dead Redis costs at most 2 s); client IP from the connection, **`X-Forwarded-For` not trusted** (spoofable; Phase 14 enables `server.forward-headers-strategy` behind a real proxy); 30 syncs/min is a placeholder until the Groq plan's limits are known.
+- `SyncService.syncIfDue` now checks, cheapest first: the user's cooldown (read only, so cooldown spam can't drain the global cap), the global cap (`BUSY` → 429 on refresh; login still succeeds without a sync), then the atomic claim. It returns `SyncResult(outcome, retryAfter)`.
+- Fixed window vs token bucket: a fixed window allows a burst at the boundary (5 at 0:59 + 5 at 1:01). Bucket4j's token bucket would smooth that; not worth a dependency at these limits.
+- Tests: 6 Redis limiter (mocked Redis: decisions, key/window, fail open) + 6 interceptor slice (6th login → 429, per IP, `X-Forwarded-For` ignored, per user, bad token not counted, unannotated endpoints free) + 3 policy check + 5 sync gates. The Lua script ran live: 6th login → 429 `Retry-After: 60`, key `v2:rl:login:ip:0:0:0:0:0:0:0:1` with count 6 and a TTL.
+- No new bugs.
+- For Phase 9: the 429 body is a `ProblemDetail` without `instance`; the error handler there should produce the same shape for every error.
+
