@@ -27,6 +27,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | Frontend | **Out of scope.** v2 is backend-only; test with HTTP client files / OpenAPI UI |
 | RAG "Ask your Manager" (pgvector) | Stretch goal. pgvector starter stays in the pom, switched off |
 | Database | Production Neon DB + remote Redis for dev (only the owner's data exists) |
+| GitHub scopes (2026-10-14) | **`read:user user:email`, no `repo`.** The token is stored for the daily sync, so a leak must not grant write access to private repos. Trade-off: private repos are invisible; private contributions still count in the calendar (as `restrictedContributionsCount`) |
 
 **Workflow (2026-10-13)**
 | Topic | Decision |
@@ -53,7 +54,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
-| 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ⬜ | |
+| 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | 👀 | |
 | 7 | Sync orchestration & Redis caching | 🤖 | ⬜ | |
 | 8 | Rate limiting | 🤖 | ⬜ | |
 | 9 | Errors, validation, logging | 🤖 | ⬜ | |
@@ -67,7 +68,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 Phase 6 (Auth) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
+**Next up:** 🧑 review Phase 6 + live login check · 🤖 Phase 7 (Sync & caching) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
 
 ---
 
@@ -257,7 +258,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 6: Auth: GitHub OAuth + JWT, stored token & email ⬜
+## Phase 6: Auth: GitHub OAuth + JWT, stored token & email 👀
 
 **v1 reference:** `routes.py` (`/auth/login`, `/auth/callback`, `/auth/logout`), `core/security.py`
 
@@ -277,9 +278,9 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 8. Read the user in controllers with `@AuthenticationPrincipal Jwt jwt` → `jwt.getSubject()`.
 
 **Done when**
-- [ ] The login round-trip yields a JWT
-- [ ] `users` has your email and an encrypted token that decrypts back to a working GitHub token
-- [ ] `GET /user/insights` returns 401 without a token and 200 with one
+- [x] The login round-trip yields a JWT (`AuthApiTest`, GitHub mocked; live check needs the OAuth App, see the log)
+- [ ] `users` has your email and an encrypted token that decrypts back to a working GitHub token (live check)
+- [x] `GET /api/user/insights` returns 401 without a token and 200 with one (404 until Phase 7 syncs the user)
 
 ---
 
@@ -540,3 +541,13 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Open questions for the developer:
   - Archetype calibration: should Monk need small PRs as well as descriptive messages? Should zero activity stay Rogue?
   - v1 production still calls the retired Groq models (B26). Fix v1 (two model names in `ai_service.py`), or leave it until v2 replaces it?
+
+### 2026-10-14: Phase 6 built (🤖)
+- Approach (a), hand-rolled like v1, same paths: `GET /api/auth/login` (302 to GitHub, `oauth_state` cookie: HttpOnly, SameSite=Lax, 10 min, path `/api/auth`), `GET /api/auth/callback` (constant-time state check, code exchange, returns `{access_token, token_type, expires_at, login}` as JSON), `GET /api/auth/logout` (302 to `FRONTEND_URL`). `/api` prefix kept for v1's contract. `insightshub.auth.redirect-to-frontend: true` restores v1's `FRONTEND_URL/dashboard?token=...`.
+- Scopes `read:user user:email` (decision above). The email comes from REST `GET /user/emails`: primary **and** verified, else null.
+- `security` package: `TokenCipher` (AES-256-GCM, random 12-byte IV, Base64 `iv‖ciphertext‖tag`; the GitHub id is bound as associated data, so a ciphertext copied to another user's row fails to decrypt), `JwtConfig` (HS256 `NimbusJwtEncoder`/`NimbusJwtDecoder`, issuer checked, secret ≥ 32 bytes), `JwtService` (`sub`=GitHub id, `name`=login, `exp` 24 h), `SecurityConfig` (stateless, CSRF off, `/api/auth/**` + health + `/error` public, everything else needs a JWT).
+- `AuthService.completeLogin`: GitHub calls first, then load-or-create the user (B18), update login/email/token, clear `needs_reauth`. No sync yet (Phase 7). `UserController`: `GET /api/user/insights` reads the stored row (v1 keys), 404 before the first sync.
+- Health `show-details: when-authorized` (planned in Phase 1): anonymous callers only see `UP`/`DOWN`.
+- Tests: 8 cipher + 4 JWT + 7 OAuth client + 4 service + 12 web/security slice (`@WebMvcTest` with the real filter chain; one test does the whole login → JWT → `/api/user/insights` round trip). Booted the real app: health 200, insights 401, login 302 with public scopes, bad state 400.
+- Bug log: B29, B30 (v1 logs every user's GitHub token).
+- **To do for the live check (developer):** create a GitHub OAuth App (callback `http://localhost:8080/api/auth/callback`), add `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` to `.env`. Without them the app no longer starts (`@NotBlank`). Then open `/api/auth/login` in a browser.
