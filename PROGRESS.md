@@ -68,7 +68,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🧑 live login check (OAuth App + `.env`) · 🤖 Phase 7 (Sync & caching) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
+**Next up:** 🤖 Phase 7 (Sync & caching) · 🧑 Phase 2.6 (`V3__activity.sql`; `V2` is taken by the archetype classes)
 
 ---
 
@@ -278,8 +278,8 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 8. Read the user in controllers with `@AuthenticationPrincipal Jwt jwt` → `jwt.getSubject()`.
 
 **Done when**
-- [x] The login round-trip yields a JWT (`AuthApiTest`, GitHub mocked; live check needs the OAuth App, see the log)
-- [ ] `users` has your email and an encrypted token that decrypts back to a working GitHub token (live check)
+- [x] The login round-trip yields a JWT (`AuthApiTest` with GitHub mocked, and live on 2026-10-14)
+- [x] `users` has your email and an encrypted token that decrypts back to a working GitHub token (live: `GET /user` 200, scopes `read:user, user:email`)
 - [x] `GET /api/user/insights` returns 401 without a token and 200 with one (404 until Phase 7 syncs the user)
 
 ---
@@ -551,4 +551,4 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Tests: 8 cipher + 4 JWT + 7 OAuth client + 4 service + 12 web/security slice (`@WebMvcTest` with the real filter chain; one test does the whole login → JWT → `/api/user/insights` round trip). Booted the real app: health 200, insights 401, login 302 with public scopes, bad state 400.
 - Bug log: B29, B30 (v1 logs every user's GitHub token).
 - PR #6 merged (`a4922cb`). GitGuardian flagged fake test keys (B31); fixed and history rewritten before merge.
-- **To do for the live check (developer):** create a GitHub OAuth App (callback `http://localhost:8080/api/auth/callback`), add `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` to `.env`. Without them the app no longer starts (`@NotBlank`). Then open `/api/auth/login` in a browser.
+- Live check passed (2026-10-14) with a dedicated OAuth App (callback `http://localhost:8080/api/auth/callback`; the first try failed with GitHub's "redirect_uri is not associated with this application" until the callback URL matched exactly). Stored token decrypts, `GET /user` returns 200 with the matching id, granted scopes are `read:user, user:email`, and decrypting with another owner id is rejected.
