@@ -52,29 +52,29 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | 0 | Setup, infra & config | 🧑 | ✅ | |
 | 1 | First endpoint: health ping | 🧑 | ✅ | |
 | 2 | Data model for v2 (JPA), steps 1–5 | 🧑 | ✅ | |
-| 2.6 | `V4__activity.sql`: `daily_contributions` (`commits` deferred) | 🤖 backend (B1) | ⬜ | |
+| 2.6 | `V4__activity.sql`: `daily_contributions` (`commits` deferred) | 🤖 backend (B1) | 🟨 B36 open | [#10](https://github.com/tushar27x/insightsHubV2/pull/10) |
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ✅ | [#6](https://github.com/tushar27x/insightsHubV2/pull/6) |
 | 7 | Sync orchestration & Redis caching | 🤖 | ✅ | [#7](https://github.com/tushar27x/insightsHubV2/pull/7) |
 | 8 | Rate limiting | 🤖 | ✅ | [#8](https://github.com/tushar27x/insightsHubV2/pull/8) |
-| 9 | Errors, validation, logging | 🤖 backend (B2) | ⬜ | |
+| 9 | Errors, validation, logging | 🤖 backend (B2) | ✅ | [#12](https://github.com/tushar27x/insightsHubV2/pull/12) |
 | | **Part B: New v2 features** | | | |
-| 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | ⬜ | |
+| 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | 🟨 | |
 | 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | ⬜ | |
 | 12 | Notifications: daily digest email (from `hero_events`) | 🤖 backend (B7) | ⬜ | |
 | 13 | Arena: leaderboards by hero level within the chosen class | 🤖 backend (B8) | ⬜ | |
 | | **Part C: Ship it** | | | |
-| 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | ⬜ | |
+| 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | 🟨 I2 👀 | |
 | | **Part D: Hero-pet plan** | | | |
-| D0 | Docs: kit committed, `PROGRESS.md` + `AGENTS.md` updated | 🤖 integration (I0) | 👀 | |
-| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | ⬜ | |
-| D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | ⬜ | |
+| D0 | Docs: kit committed, `PROGRESS.md` + `AGENTS.md` updated | 🤖 integration (I0) | ✅ | [#9](https://github.com/tushar27x/insightsHubV2/pull/9) |
+| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U2 | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) |
+| D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | 🟨 I1 | [#13](https://github.com/tushar27x/insightsHubV2/pull/13) |
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** merge I0 first. Then, in parallel: 🤖 backend B1 (`V4__activity.sql` + `calendar_count` writes) · 🤖 ui U1 (`web/` scaffold) · 🤖 integration I1 (shared types) after U1, I2 (Testcontainers + CI) after B1.
+**Next up:** 🤖 backend: fix **B36** (syncs fail at the activity write), then B3 · 🤖 ui U3 (Home) · 🤖 integration: I2 in review, then I4 (wiring) and I3 (contract tests, after B5).
 
 ---
 
@@ -466,7 +466,7 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 5. Build an image with `./mvnw spring-boot:build-image`, add `application-prod.yml`, and deploy (v1 used Koyeb).
 
 **Done when**
-- [ ] `./mvnw verify` is green with integration tests
+- [x] `./mvnw verify` is green with integration tests (I2: Testcontainers Postgres + Redis, CI on every PR; `DailyContributionsRepositoryIT` disabled until B36)
 - [ ] Swagger UI documents every endpoint
 - [ ] The app runs in production, and the daily sync + digest fire there
 
@@ -677,3 +677,11 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - For B5: Jackson 3 rejects `null`/missing values for primitive fields (`FAIL_ON_NULL_FOR_PRIMITIVES`) with "Failed to read request" before validation runs, so use boxed types in request DTOs to get field errors.
 - Tests: 9 handler (standalone MockMvc, every error kind) + 3 `/error` + 3 `ProblemDetails` + 2 security writers + 10 new assertions/tests in `AuthApiTest` (problem bodies, callback validation, no echo of tokens) + `RateLimitApiTest` shape. App not booted (B23).
 - Bug log: B34, B35.
+
+### 2026-10-16: I2 Testcontainers + CI (🤖 integration)
+- `src/test/**/it/`: `@IntegrationTest` (`@SpringBootTest` + `TestcontainersConfig`: Postgres 17 + Redis 7 via `@ServiceConnection`, Testcontainers 2.0.5 from the Boot BOM, test secrets generated at runtime per B31, LLM base URL on a closed local port). The old `contextLoads` is now `ApplicationContextIT`: Flyway migrates an empty DB, `ddl-auto: validate` passes and nothing lands in `public`. `UsersRepositoryIT` finally tests the atomic `claimSync` (left for Phase 14 in Phase 7).
+- **B23 fixed:** Surefire and Failsafe set `spring.datasource.url` and the Redis host to unresolvable `*.invalid` hosts (system properties beat `application.yml` and `.env`; `@ServiceConnection` beats both). `./mvnw test` is now the full unit suite, offline; `./mvnw verify` adds the ITs and needs Docker.
+- **B36 found:** B1's `DailyContributionsRepository` SQL is unqualified and only JPA knows about `v2`, so on a real Postgres every upsert fails with `relation "daily_contributions" does not exist`, and `SyncService.sync` fails at that step. The mocked unit tests couldn't see it. Proven fixable with `SET search_path TO v2` on the pool (all 3 ITs pass); the backend owns the fix. `DailyContributionsRepositoryIT` is `@Disabled("B36 …")` until then.
+- CI (`.github/workflows/ci.yml`): backend `./mvnw verify`; web `design:check` (before `build`, which regenerates the design files), lint, test (incl. the I1 fixture test), build. No secrets.
+- Locally: 215 unit tests pass (5 opt-in live tests skipped), 6 ITs (3 skipped for B36), about 18 s with images cached. Docker needed the developer in the `docker` group.
+- Working agreement: `--force-with-lease` is now allowed on your own open PR branch after a rebase, after checking the remote has no commits you lack (WORKFLOW.md).

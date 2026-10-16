@@ -1,6 +1,6 @@
 # Three-agent workflow
 
-Three Claude Code agents work in parallel on `tushar27x/insightsHubV2`, each in its own git worktree and branch. The developer (Tushar) reviews and merges every PR. **Agents never merge, never push to `main`, and never force-push.**
+Three Claude Code agents work in parallel on `tushar27x/insightsHubV2`, each in its own git worktree and branch. The developer (Tushar) reviews and merges every PR. **Agents never merge and never push to `main`.** The only force-push allowed is `--force-with-lease` to your own open PR branch after a rebase (see below).
 
 | Agent | Definition | Owns (may edit) | Must not edit |
 |---|---|---|---|
@@ -31,6 +31,7 @@ git worktree add ../ih-integration -b int/i0-docs
 - Branch names: `backend/bN-…`, `ui/uN-…`, `int/iN-…`.
 - **One PR per step.** Start each new step from fresh `main`: `git switch main && git pull && git switch -c <next>`.
 - Rebase on `main` before opening a PR. Never merge `main` into a branch.
+- If an open PR conflicts with `main`, rebase it and push with `git push --force-with-lease`. First `git fetch` and run `git log HEAD..origin/<branch>`: if the remote branch has commits you don't have (the developer may have used GitHub's "Update branch"), stop and ask instead of overwriting them. The lease only protects commits you haven't fetched.
 - A PR description has: what changed, how it was tested, the plan step, bugs found (B-numbers), and contract changes (if any). No AI attribution lines.
 - Each agent stops after opening its PR (or after pushing its branch, if `gh` isn't set up) and waits for the developer.
 
@@ -81,7 +82,7 @@ Types: `REQUEST` (needs another lane to act), `FYI` (a merged change others shou
 
 ## Guardrails (all agents)
 
-- ⚠️ **B23:** until I2 lands, the full backend test suite runs Flyway against the **live Neon DB**. Run targeted unit tests only: `./mvnw test -Dtest=HeroRulesTest`. Never start the app or the full suite against Neon without the developer's OK.
+- ⚠️ **B23 (fixed in I2):** `./mvnw test` (unit tests) and `./mvnw verify` (plus Testcontainers ITs, Docker needed) never touch Neon: Surefire and Failsafe point the datasource at an unresolvable host. A new test that boots the app goes in `src/test/**/it/` with `@IntegrationTest`. Starting the app (`spring-boot:run`) still uses Neon: never without the developer's OK.
 - Never commit `.env` or anything secret-shaped. Never log tokens.
 - GitHub data comes from GraphQL. REST only for OAuth and `/user/emails`. No `repo` scope.
 - The archetype is scored by code. The LLM only adds flavour text, and every AI output has a static fallback.

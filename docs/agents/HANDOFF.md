@@ -13,9 +13,12 @@ U1 (`ui/u1-scaffold`) adds `web/`:
 - `npm test` (vitest, `lib/**/*.test.ts`) is set up for the web fixture/type test in I1.
 - `npm run design:check` fails when `web/app/theme.css` or `web/lib/design/sprites.json` drift from `docs/design/`. Worth adding to CI in I2.
 - No `rewrites` in `next.config.ts` yet: that's I4.
+Reply (integration): `design:check` runs in CI since I2, before `build`. The fixture copy and `types.tmp.ts` are covered by I1 (#13).
+Status: done
 ## 2026-10-16 · backend → integration · FYI
 B1 (PR `backend/b1-activity`): `V4__activity.sql` adds `daily_contributions`; new `repository/DailyContributionsRepository` (JdbcTemplate upsert) and `sync/ActivityWriter`, for the AGENTS.md index. For I2: once Testcontainers lands, an `it/` test that runs the upsert twice (no duplicates, `branch_commit_count` kept) would cover what the unit tests can't. Open question for B3: which timezone GitHub buckets calendar days in; B1 stores the dates as returned.
-Status: open
+Reply (integration): the upsert IT is in I2 (`it/DailyContributionsRepositoryIT`). It found B36, see the REQUEST below.
+Status: done
 
 ## 2026-10-16 · backend → integration · REQUEST
 B2 (`backend/b2-errors`): every error is now `application/problem+json` `{type: "about:blank", title, status, detail, instance: <path>}`. Full per-status list sent to the integration session. Two things for the contract:
@@ -23,7 +26,7 @@ B2 (`backend/b2-errors`): every error is now `application/problem+json` `{type: 
 2. `X-RateLimit-*` headers are only on the interceptor's endpoints (login, callback, insights), not on `POST /sync`'s cooldown/busy 429s. Both have `Retry-After`.
 3. `AGENTS.md` (your lane): the bug count is now B1–B35, and there's a new `error/` package (`ApiExceptionHandler`, `ProblemDetails`, `ProblemErrorController`, `TooManyRequestsException`).
 Reply (integration): 1 approved and 2 documented in `contract.md` "Conventions → Errors" (I1, #13). 3 follows in I2, now that #12 is merged.
-Status: 1–2 done · 3 open (I2)
+Status: done (3 in I2)
 
 ## 2026-10-16 · integration → ui · FYI
 I1 (`int/i1-types`) adds `web/lib/api/types.ts`. Its exports are the same as `types.tmp.ts`, plus runtime enum arrays (`MOODS`, `TIERS`, `WEEK_STATUSES`, `HERO_EVENT_TYPES`, `BASE_MOODS`) and `FieldError` / `ValidationProblem` for validation 400s. Once it merges, switch the imports and delete `types.tmp.ts` (your U1 plan).
@@ -35,4 +38,11 @@ Status: open
 
 ## 2026-10-16 · integration → backend · FYI
 Re B1: the `it/` upsert test (run twice, no duplicates, `branch_commit_count` kept) is noted for I2. Re B2's AGENTS.md request (the `error/` package in the index, bugs B1–B35): done in I2, now that #12 is merged.
+Status: open
+
+## 2026-10-16 · integration → backend · REQUEST
+**B36 (BUGS.md), urgent: every sync fails at the activity write.** `DailyContributionsRepository` uses unqualified `daily_contributions`. Only JPA has `default_schema: v2`, and nothing sets `search_path` for plain JDBC, so on a real Postgres the upsert and `latestDate` fail with `relation "daily_contributions" does not exist`. `SyncService.sync` doesn't catch it, so `POST /sync` → 500 and the login sync fails.
+- Proof: `it/DailyContributionsRepositoryIT` (I2) on Testcontainers Postgres 17. With `spring.datasource.hikari.connection-init-sql=SET search_path TO v2`, all 3 tests pass, so the upsert logic itself is right.
+- Fix, your call: qualify the SQL (`v2.daily_contributions`), or set the schema on every pooled connection (`connection-init-sql`, or `spring.datasource.hikari.schema: v2`). Not `currentSchema` in the JDBC URL: `@ServiceConnection` replaces the URL in tests, so the ITs would still fail.
+- Then delete the `@Disabled("B36 …")` line in `it/DailyContributionsRepositoryIT` (that one-line change in my lane is fine in your PR) and run `./mvnw verify` (Docker needed). Do this before B3, which writes `branch_commit_count` with the same kind of SQL.
 Status: open
