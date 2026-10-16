@@ -62,19 +62,19 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | 9 | Errors, validation, logging | 🤖 backend (B2) | ✅ | [#12](https://github.com/tushar27x/insightsHubV2/pull/12) |
 | | **Part B: New v2 features** | | | |
 | 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | ✅ (first live run pending) | [#10](https://github.com/tushar27x/insightsHubV2/pull/10) [#20](https://github.com/tushar27x/insightsHubV2/pull/20) |
-| 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | ⬜ | |
+| 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | 🟨 B4 | [#22](https://github.com/tushar27x/insightsHubV2/pull/22) |
 | 12 | Notifications: daily digest email (from `hero_events`) | 🤖 backend (B7) | ⬜ | |
 | 13 | Arena: leaderboards by hero level within the chosen class | 🤖 backend (B8) | ⬜ | |
 | | **Part C: Ship it** | | | |
 | 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | 🟨 I2 | [#15](https://github.com/tushar27x/insightsHubV2/pull/15) |
 | | **Part D: Hero-pet plan** | | | |
 | D0 | Docs: kit committed, `PROGRESS.md` + `AGENTS.md` updated | 🤖 integration (I0) | ✅ | [#9](https://github.com/tushar27x/insightsHubV2/pull/9) |
-| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U3 | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) [#18](https://github.com/tushar27x/insightsHubV2/pull/18) |
-| D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | 🟨 I1, sprites | [#13](https://github.com/tushar27x/insightsHubV2/pull/13) [#19](https://github.com/tushar27x/insightsHubV2/pull/19) |
+| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U4 | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) [#18](https://github.com/tushar27x/insightsHubV2/pull/18) [#23](https://github.com/tushar27x/insightsHubV2/pull/23) |
+| D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | 🟨 I1, sprites, hero-events | [#13](https://github.com/tushar27x/insightsHubV2/pull/13) [#19](https://github.com/tushar27x/insightsHubV2/pull/19) |
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 backend B4 (`V5__hero.sql` + `HeroRules`) · 🤖 ui U4 · 🤖 integration I4 (wiring) and I3 (contract tests), both after B5.
+**Next up:** 🤖 backend B5 (hourly hero job, `GET /hero`, `/hero/events`, `/preferences`, the `#token` redirect) · 🤖 ui U5 · 🤖 integration I3 (contract tests) and I4 (wiring), both after B5.
 
 ---
 
@@ -383,7 +383,7 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 
 ---
 
-## Phase 11: Hero engine (lives, XP, levels) ⬜
+## Phase 11: Hero engine (lives, XP, levels) 🟨
 
 **Goal:** evaluate each finished day once and move the user's hero: XP, streak, hearts and level. Replaces the original "Habit engine (3 rules)" (streak broken, no commits for N days, lazy messages); hearts cover the first two, and lazy messages become a Journal tip later. Full rules: [`docs/v2-hero-plan.md`](docs/v2-hero-plan.md) §2. Steps B4–B6.
 
@@ -407,9 +407,21 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 3. Hourly job for users past 06:00 local with `last_evaluated_on < yesterday`; `GET /api/user/hero`, `GET /api/user/hero/events`, `GET/PUT /api/user/preferences` (B5); `PUT /api/user/hero/class` (B6). Shapes in [`docs/api/contract.md`](docs/api/contract.md).
 
 **Done when**
-- [ ] `HeroRules` covers every rule, edge case (heart cap, faint at level 1, rest days, month and timezone boundaries) and idempotency
+- [x] `HeroRules` covers every rule, edge case (heart cap, faint at level 1, rest days, month and timezone boundaries) and idempotency (B4: `HeroRulesTest`, `DueDaysTest`, `RestDaysTest`)
 - [ ] Running the hero job twice creates no duplicate events, and a 3-day outage is caught up in order
 - [ ] Class switch: unqualified → 409, during the cooldown → 429, success keeps the level
+
+**As built** (B4 #22)
+- `hero/HeroRules`: pure static functions, no clock or Spring. `evaluateDay(state, day)` settles one day (a day already settled is a no-op, a skipped day is refused), `evaluateDays` catches up in order, `dueDays(lastEvaluatedOn, now, zone)` lists the days ready to settle (a day is due at 06:00 local the next morning, `GRACE` = 6 h), `seed(activeDates, lastDay)` builds the first-login hero. Records `HeroState`, `HeroDay`, `HeroEvent`, enum `HeroEventType`; `RestDays` converts the weekday bitmask.
+- `V5__hero.sql`: `users.timezone` (default `UTC`), `rest_days` (bit 0 = Monday … bit 6 = Sunday, at most 2 set, CHECK), `chosen_archetype`, `archetype_changed_at`; `hero_state` (CHECKs: lives 1–3, `0 ≤ xp < 50 × level`); `hero_events` (`UNIQUE (user_id, type, on_date)`, `digest_id` for Phase 12).
+- **Beyond the plan:**
+  - `hero_days(user_id, on_date, xp_gained, streak)`, one row per settled day, for `xp_days` (events alone can't rebuild XP and streak).
+  - `users.rest_days_previous` + `rest_days_from`, so "a change applies from the next day" still holds when the job catches up on days before the change.
+- **Rule gaps B4 filled (⏳ developer to confirm):**
+  - An inactive sign-up day costs nothing (only days *after* sign-up cost hearts); an active one counts.
+  - The seed's streak is the run of active days ending yesterday (the plan only seeds XP).
+  - "XP back to the start of that level" = XP 0 in the new level; a faint at level 1 also resets XP to 0 and refills the hearts.
+- Event `details` and the `xp_days` rows are in `docs/api/contract.md` (`GET /hero/events`).
 
 ---
 
@@ -701,3 +713,9 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - **Closed-eye sprites** (#19, integration): the eyes sit on a different row per class, so `variants.sleepingEyesRow` (MONK, row 4) became `variants.sleepingEyes` (`{CLASS: {row, value}}`, 7 classes; PALADIN's visor already hides the eyes). The old key was removed after the UI switched. Lesson: a JSON shape with a `_doc` string next to the entries needs a cast through `unknown` in TS.
 - **B3** (#20, backend): the daily sync and branch scan, see Phase 10 "As built". 255 unit tests, 9 ITs. The ITs turn the cron off (`insightshub.sync.cron: "-"`).
 - #20 conflicted with #18 on `HANDOFF.md` (both appended at the bottom). Integration rebased the backend's branch at the developer's request and pushed with a lease pinned to the backend's last commit. Appending to `HANDOFF.md` from two lanes at once will keep conflicting: resolve by keeping both entries in merge order.
+
+### 2026-10-17: B4 + U4, hero-events contract (🤖 all lanes)
+- **B4** (#22, backend): V5 hero schema and the pure `HeroRules`; see Phase 11 "As built". 304 unit tests, 15 ITs. Three rule gaps filled, waiting for the developer's confirmation.
+- **U4** (#23, ui): the Journal and the Hero sheet. Home's RECENTLY log skips 0-XP days; their `RESTED` / `LIFE_LOST` events tell them.
+- **Contract (integration):** `xp_days` lists every settled day (0 XP on missed and rest days), and the event `details` are defined. `hero-events.json` is now a 30-day story replayed with B4's rules that ends exactly in `hero.json`'s state, with a fixture test for that. The old fixture had Monday and Tuesday at streak 1 and 2, which the rules can't produce with `hero.json`'s 2 hearts (the streak carries over the Sunday rest day), so mock-mode Home now shows "Streak 12 / Streak 11" where the boards show 2 / 1.
+- **IT user ids:** each IT class owns a block of 100 GitHub ids (`IntegrationTest` javadoc). B4's first id collided with `UsersRepositoryIT`'s `USER + 1`.
