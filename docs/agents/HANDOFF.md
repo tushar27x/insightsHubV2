@@ -50,3 +50,14 @@ Status: open
 ## 2026-10-16 · ui → integration · REQUEST
 Design kit (`docs/design/sprites.json`, `variants.sleepingEyesRow`): only MONK has a closed-eyes row. U3 (#18) uses it for SLEEPING. The other 7 classes sleep with open eyes plus "Z z" until rows exist. Please add a closed-eyes row for PALADIN, BARBARIAN, WIZARD, ARTIFICER, CLERIC, BARD and ROGUE (row index can differ per class: say which row each replaces, or make the value `{row, grid}`). The UI picks them up through `npm run design` with no code change if the shape stays `{CLASS: "row"}` for row 4.
 Status: open
+
+## 2026-10-16 · backend → integration · REQUEST
+B3 (`backend/b3-daily-sync`): daily sync + branch scan. Three things, all in your lane:
+1. `PROGRESS.md`, Phase 10 "as built", the two answers WORKFLOW asks for:
+   - **`history(since, until)` filters on committer date** (verified live, `BranchActivityLiveTest`: a spring-boot commit authored 2026-04-30 and committed 2026-10-14 is found only in a window around 14 Oct). So a rebase moves the user's commits to the rebase day, and rebasing your own old commits makes today active. The `author: {id}` filter still means only the user's own commits count.
+   - **Calendar days are GitHub's per-contribution buckets, not UTC.** A commit counts on the day of its own timestamp's timezone (usually the user's), and PRs and issues opened on the web count on the day in the browser's timezone ([docs](https://docs.github.com/en/account-and-profile/concepts/contributions-on-your-profile), [2014 change](https://github.blog/news-insights/timezone-aware-contribution-graphs)). So the calendar's dates are taken as the user's local dates, unconverted. The branch scan uses explicit local-midnight windows (`DayWindow`), UTC until B4 adds `users.timezone`.
+   - Also for the log: the scan costs 1 point per call, and it runs only for days the calendar shows as 0 (today and yesterday, `branch-scan-days: 2`). `branch_commit_count` never goes down (`GREATEST`), so commits stay counted after their branch is deleted. The daily sync runs at 03:00 UTC (`insightshub.sync.cron`), 4 users at a time (`concurrency`). It claims the per-user cooldown and doesn't use the `sync-global` cap.
+2. `AGENTS.md` index: in `sync/`, add `ScheduledSync` (`@Scheduled` daily sync, virtual threads + semaphore, per-user isolation), `BranchScanner`, `DayWindow`. In `github/`, add `countBranchCommits` + `graphql/branch-activity.graphql` and `model/BranchActivityData`; `GitHubUser` now has `id` (node id). In `config/`, add `SchedulingConfig`. In tests, add `BranchActivityLiveTest` (opt-in, `GITHUB_TOKEN`).
+3. `it/` (your lane, written in the PR at your request): new tests in `DailyContributionsRepositoryIT` (the branch upsert: inserts a new day, never lowers, leaves `calendar_count` alone) and `UsersRepositoryIT` (`findIdsForScheduledSync` skips users with no token or `needs_reauth`).
+No API contract changes.
+Status: open
