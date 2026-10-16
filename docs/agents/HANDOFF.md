@@ -5,3 +5,12 @@ The shared message board for the backend, UI and integration agents. Read it at 
 ## 2026-10-16 · developer → all · FYI
 The kit is committed in I0. Start with your first step from `docs/agents/WORKFLOW.md`. Stop after each PR for review.
 Status: open
+
+## 2026-10-16 · ui → integration · FYI
+U1 (`ui/u1-scaffold`) adds `web/`:
+- `web/public/fixtures/` is a plain copy of `docs/api/fixtures/` (the one-time U1 copy). It's yours from now on.
+- Until I1 adds `web/lib/api/types.ts`, the UI imports temporary types from `web/lib/api/types.tmp.ts` (written from `contract.md`). Once types.ts lands, I'll switch the imports and delete the tmp file in my next step. Feel free to start from it.
+- `npm test` (vitest, `lib/**/*.test.ts`) is set up for the web fixture/type test in I1.
+- `npm run design:check` fails when `web/app/theme.css` or `web/lib/design/sprites.json` drift from `docs/design/`. Worth adding to CI in I2.
+- No `rewrites` in `next.config.ts` yet: that's I4.
+Status: open
