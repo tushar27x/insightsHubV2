@@ -1,6 +1,6 @@
 # Insight Hub v2: Progress & Roadmap
 
-Rewrite of the Insight Hub backend (v1: Python/FastAPI in `~/dev/insight_hub/server`, repo `tushar27x/insight_hub`) in **Spring Boot 4 + Spring AI** (repo `tushar27x/insightsHubV2`), done as a learning project.
+Rewrite of the Insight Hub backend (v1: Python/FastAPI in `~/dev/insight_hub/server`, repo `tushar27x/insight_hub`) in **Spring Boot 4 + Spring AI** (repo `tushar27x/insightsHubV2`), done as a learning project. Since 2026-10-16 v2 is a **hero-pet habit tracker** with its own web UI in `web/` (Next.js), see [Part D](#part-d-hero-pet-plan-2026-10-16).
 The goal is to understand the concepts, not just to reach feature parity. Each phase lists the concepts to learn, the v1 file to look at (if any), hints, and a "done when" checklist.
 
 **Status legend:** ⬜ not started · 🟨 in progress · 👀 PR in review · ✅ done
@@ -12,19 +12,19 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 **Why v2:** a Spring Boot project for the resume, with Spring AI replacing v1's Python LLM calls. v2 ports v1, then adds new features on top.
 
 **What v2 adds beyond the port**
-1. **Habit tracker:** a daily scheduled sync of each user's GitHub activity, kept as history.
-2. **Alerts:** detected habits are sent to the user in a **daily digest email**.
+1. **Habit tracker:** a daily scheduled sync of each user's GitHub activity, kept as history. Since 2026-10-16 it drives a **hero pet** with lives, XP and levels (Part D).
+2. **Alerts:** hero events (lost hearts, level changes) are sent to the user in a **daily digest email**.
 3. **Archetype ranking:** archetypes become scores, and users are ranked within their archetype, globally. Archetypes are D&D-style classes tied to coding habits (decided in the PR #3 review).
 
 **Decisions (2026-10-01)**
 | Topic | Decision |
 |---|---|
-| Habits to detect | **Streak broken**, **no commits for N days**, **lazy commit messages** |
+| Habits to detect | ~~**Streak broken**, **no commits for N days**, **lazy commit messages**~~ Replaced on 2026-10-16 by the hero engine's lives, XP and levels (Part D). Lazy messages become a Journal tip later |
 | Alert delivery | **Daily digest** (one email per user per day, only when there's something to report) |
 | Channels | Email first, behind a `NotificationChannel` interface. Discord webhook is a stretch goal; Slack is future scope |
 | GitHub data | GraphQL API for all activity data. REST only where unavoidable (OAuth code exchange, `GET /user/emails`) |
 | Rankings | Global, per archetype. Friends-only ranking is future scope |
-| Frontend | **Out of scope.** v2 is backend-only; test with HTTP client files / OpenAPI UI |
+| Frontend | ~~Out of scope~~ **In scope since 2026-10-16:** a Next.js 16 web UI in `web/`, in the same repo (Part D) |
 | RAG "Ask your Manager" (pgvector) | Stretch goal. pgvector starter stays in the pom, switched off |
 | Database | Production Neon DB + remote Redis for dev (only the owner's data exists) |
 | Sync cooldown (2026-10-14) | **Users can refresh at most every 10 minutes** (`POST /api/user/sync`, and login), instead of v1's 7-day login-only rule. GitHub isn't the limit (the sync uses the user's own token; the query costs 1 point). The shared cost is the 5 LLM calls per sync on the app's Groq key |
@@ -34,7 +34,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | Topic | Decision |
 |---|---|
 | Port (phases 3–9) | Implemented by the AI agent, **one PR per phase** against `main`, reviewed and merged by the developer |
-| v2 features (2.6, 10–13) | Implemented by the developer; the AI agent reviews and gives hints |
+| v2 features (2.6, 10–13) | ~~Implemented by the developer; the AI agent reviews and gives hints~~ Replaced on 2026-10-16 by the **3-agent working agreement** (Part D): backend, UI and integration agents build everything, the developer reviews and merges |
 | Attribution | No AI-agent co-author lines in commits, no "generated with" footer in PR descriptions |
 | Bugs | Every bug is logged in [`BUGS.md`](BUGS.md); PR descriptions list the bugs found in that phase; the developer is kept informed while debugging |
 | Archetype scoring | Built by the AI agent in PR #3 after the developer's review (code scores the class; the LLM only adds flavour in Phase 5). Phase 13 keeps the leaderboards |
@@ -43,7 +43,8 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 
 ## Current status
 
-**Owner:** 🤖 AI agent implements and opens a PR for review · 🧑 developer implements, AI agent reviews
+**Owner:** 🤖 AI agent implements and opens a PR for review · 🧑 developer implements, AI agent reviews.
+From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (steps B1–B8, U1–U6, I0–I6 in [`docs/agents/WORKFLOW.md`](docs/agents/WORKFLOW.md)).
 
 | Phase | Title | Owner | Status | PR |
 |------:|-------|:-----:|:------:|:--:|
@@ -51,25 +52,29 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | 0 | Setup, infra & config | 🧑 | ✅ | |
 | 1 | First endpoint: health ping | 🧑 | ✅ | |
 | 2 | Data model for v2 (JPA), steps 1–5 | 🧑 | ✅ | |
-| 2.6 | `V4__activity.sql`: `daily_contributions`, `commits` | 🧑 | ⬜ | |
+| 2.6 | `V4__activity.sql`: `daily_contributions` (`commits` deferred) | 🤖 backend (B1) | ⬜ | |
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
 | 6 | Auth: GitHub OAuth + JWT, stored token & email | 🤖 | ✅ | [#6](https://github.com/tushar27x/insightsHubV2/pull/6) |
 | 7 | Sync orchestration & Redis caching | 🤖 | ✅ | [#7](https://github.com/tushar27x/insightsHubV2/pull/7) |
 | 8 | Rate limiting | 🤖 | ✅ | [#8](https://github.com/tushar27x/insightsHubV2/pull/8) |
-| 9 | Errors, validation, logging | 🤖 | ⬜ | |
+| 9 | Errors, validation, logging | 🤖 backend (B2) | ⬜ | |
 | | **Part B: New v2 features** | | | |
-| 10 | Scheduled daily sync & activity history | 🧑 | ⬜ | |
-| 11 | Habit engine (3 rules) | 🧑 | ⬜ | |
-| 12 | Notifications: daily digest email | 🧑 | ⬜ | |
-| 13 | Archetype leaderboards (scoring done in #3) | 🧑 | ⬜ | |
+| 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | ⬜ | |
+| 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | ⬜ | |
+| 12 | Notifications: daily digest email (from `hero_events`) | 🤖 backend (B7) | ⬜ | |
+| 13 | Arena: leaderboards by hero level within the chosen class | 🤖 backend (B8) | ⬜ | |
 | | **Part C: Ship it** | | | |
-| 14 | Testing, API docs & deployment | TBD | ⬜ | |
+| 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | ⬜ | |
+| | **Part D: Hero-pet plan** | | | |
+| D0 | Docs: kit committed, `PROGRESS.md` + `AGENTS.md` updated | 🤖 integration (I0) | 👀 | |
+| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | ⬜ | |
+| D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | ⬜ | |
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 Phase 9 (Errors, validation, logging; the last port phase) · 🧑 Phase 2.6 (`V4__activity.sql`; `V3` is taken by Phase 7)
+**Next up:** merge I0 first. Then, in parallel: 🤖 backend B1 (`V4__activity.sql` + `calendar_count` writes) · 🤖 ui U1 (`web/` scaffold) · 🤖 integration I1 (shared types) after U1, I2 (Testcontainers + CI) after B1.
 
 ---
 
@@ -90,7 +95,7 @@ The goal is to understand the concepts, not just to reach feature parity. Each p
 | `fastapi-limiter` | rate limit per route | `HandlerInterceptor` + Redis (or Bucket4j) |
 
 ### v1 API contract (reference)
-The frontend is out of scope, but keeping v1's response shape means the v1 Next.js client could be pointed at v2 later.
+Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. Since Part D, v2 has its own web UI and the contract lives in [`docs/api/contract.md`](docs/api/contract.md).
 - `GET /api/auth/login`: redirects to GitHub (sets `oauth_state` cookie)
 - `GET /api/auth/callback?code&state`: syncs data, redirects to `FRONTEND_URL/dashboard?token=<jwt>`
 - `GET /api/auth/logout`: redirects to `FRONTEND_URL`
@@ -147,11 +152,11 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 **Tables to design** (names are suggestions):
 | Table | Purpose | Notes |
 |---|---|---|
-| `users` | GitHub id (PK), login, **email**, **encrypted GitHub token**, preferences (`alerts_enabled`, `no_commit_days`, `public_profile`), `last_synced_at` | Preferences could be a separate table. Your call |
+| `users` | GitHub id (PK), login, **email**, **encrypted GitHub token**, preferences (`alerts_enabled`, `no_commit_days`, `public_profile`), `last_synced_at` | Preferences could be a separate table. Your call. Part D adds `timezone`, `rest_days`, `chosen_archetype`, `archetype_changed_at`; `no_commit_days` is obsolete (hearts replace it) and stays unused |
 | `insights` | Latest computed stats JSON, AI texts (year in review, weekly, craft), archetype | Replaces v1's `user_templates` |
-| `daily_contributions` | `(user_id, date)` → `count` | Composite key. One row per day, backfilled from the contribution calendar |
-| `commits` | `sha` (unique), user, repo, message, `committed_at` | Feeds the lazy-message rule. `sha` makes inserts idempotent |
-| `habit_alerts` | user, type, detected date, details JSON, `digest_id` (null = not sent yet) | Unique `(user_id, type, detected_on)` so the same alert can't be created twice |
+| `daily_contributions` | `(user_id, date)` → `calendar_count`, `branch_commit_count` | Composite key. One row per day, backfilled from the contribution calendar (`V4__activity.sql`, Part D) |
+| `commits` | `sha` (unique), user, repo, message, `committed_at` | **Deferred (Part D):** lazy-message detection becomes a Journal tip later |
+| ~~`habit_alerts`~~ → **`hero_events`** | user, type (`LIFE_LOST`, `LIFE_GAINED`, `LEVEL_UP`, `LEVEL_DOWN`, `FAINTED`, `RESTED`, `CLASS_CHANGED`), `on_date`, details JSON, `digest_id` (null = not sent yet) | Unique `(user_id, type, on_date)`. Replaces `habit_alerts` (Part D, `V5__hero.sql`) |
 | `digests` | user, sent-at, channel, status | Log of what was actually sent |
 | `archetype_scores` | user, archetype, score, `algo_version`, computed-at | Used in Phase 13 |
 
@@ -335,7 +340,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 1. Replace every `print(...)` from v1 with proper log levels. **Never log tokens** (v1 printed the GitHub token response!).
 2. Map exceptions to responses in one place: `GitHubApiException` → 502, `UserNotFoundException` → 404, and so on.
 3. Validate request bodies, such as the preferences update in Phase 12, with `@Valid` and constraint annotations.
-4. CORS only matters once a browser frontend calls the API. Skip it until then, but know it goes through Spring Security's `.cors(...)`.
+4. CORS: the web UI calls `/api/*` through Next `rewrites` on its own origin, so no CORS is needed. The exception is `/sync` if the deploy host's proxy timeout is shorter than a sync (I4 decides); then CORS for that route only, through Spring Security's `.cors(...)`.
 
 **Done when**
 - [ ] All errors return consistent `ProblemDetail` JSON
@@ -369,48 +374,51 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 
 ---
 
-## Phase 11: Habit engine (3 rules) ⬜
+## Phase 11: Hero engine (lives, XP, levels) ⬜
 
-**Goal:** after each sync, detect the three habits and store them as pending alerts.
+**Goal:** evaluate each finished day once and move the user's hero: XP, streak, hearts and level. Replaces the original "Habit engine (3 rules)" (streak broken, no commits for N days, lazy messages); hearts cover the first two, and lazy messages become a Journal tip later. Full rules: [`docs/v2-hero-plan.md`](docs/v2-hero-plan.md) §2. Steps B4–B6.
 
-**Concepts:** Strategy pattern via Spring (`List<HabitRule>` injection), pure functions + unit tests, `@EventListener` / `@TransactionalEventListener(phase = AFTER_COMMIT)`, idempotency through unique constraints.
+**Concepts:** pure functions + exhaustive unit tests (tests first), `java.time` with IANA time zones, idempotent catch-up, hourly `@Scheduled` jobs, one transaction for state + events, unique constraints.
 
-**The rules**
-| Rule | Fires when | Avoid nagging |
-|---|---|---|
-| **Streak broken** | Yesterday = 0 contributions, and the streak before it was ≥ a minimum length (e.g. 3 days) | Fires once per broken streak |
-| **No commits for N days** | The last N days are all 0 (N = user preference, default 3) | Fire on day N, then at most once a week while it continues |
-| **Lazy commit messages** | Among the last day's (or week's) commits, the share of "lazy" messages is above a threshold | Needs a minimum number of commits, so one bad commit doesn't trigger it |
+**The rules** (summary; the plan wins)
+| Day was… | Effect |
+|---|---|
+| Active (`calendar_count > 0 OR branch_commit_count > 0`) | +10 XP · streak +1 · every 3rd consecutive active day: +1 heart (max 3) |
+| A rest day with no activity | No effect, streak paused. Event `RESTED` |
+| Inactive, not a rest day | −1 heart · streak → 0 · event `LIFE_LOST` |
 
-**Hints**
-1. Define `interface HabitRule { Optional<HabitAlert> evaluate(UserActivity activity); }` and make each rule a `@Component`. Then inject `List<HabitRule>` and Spring hands you **all** of them. Adding a fourth rule later means adding one class.
-2. Keep the rules pure: build a `UserActivity` record (recent daily counts, recent commits, preferences, today's date) from the DB, then pass it in. No repositories inside the rules → easy unit tests.
-3. "Lazy" message heuristic, as a starting point: very short, or matching words like `wip`, `fix`, `update`, `changes`, `asdf`, `.`. Write it as a unit-tested function. **Spring AI option:** classify the messages with `.entity(...)` structured output and have the model say *why* they're lazy. Heuristic first, AI as an upgrade.
-4. Listen for `UserSyncedEvent`. Find out the difference between `@EventListener` and `@TransactionalEventListener(AFTER_COMMIT)`, and why the second matters here.
-5. Save detected alerts to `habit_alerts`. The unique `(user_id, type, detected_on)` constraint makes re-runs harmless. Catch the duplicate-key error or check first, and know which is better.
-6. Unit test each rule with fixed dates (e.g. a streak broken on a Monday, N-day gaps across a month boundary).
+- Hearts reach 0 → level −1 (minimum 1), XP back to the start of that level, hearts refill to 3 (`LEVEL_DOWN`, or `FAINTED` at level 1). Level *n* → *n+1* needs `50 × n` XP (`LEVEL_UP`).
+- Each day is evaluated after it ends, with a 6-hour grace. Missed days are caught up in order, idempotent via `hero_state.last_evaluated_on`.
+- First login seeds XP from the last 90 days' active days, without heart losses.
+- Mood is derived, never stored. Class switching: score ≥ 40 or the top class, 7-day cooldown, level and hearts kept.
+
+**Build**
+1. `V5__hero.sql`: `users.timezone`, `rest_days` (at most 2 weekdays, CHECK), `chosen_archetype`, `archetype_changed_at`; `hero_state`; `hero_events` (replaces `habit_alerts`).
+2. Pure `HeroRules.evaluateDay(state, date, activityCounts, isRestDay) → (newState, events)`, tests first (B4).
+3. Hourly job for users past 06:00 local with `last_evaluated_on < yesterday`; `GET /api/user/hero`, `GET /api/user/hero/events`, `GET/PUT /api/user/preferences` (B5); `PUT /api/user/hero/class` (B6). Shapes in [`docs/api/contract.md`](docs/api/contract.md).
 
 **Done when**
-- [ ] Each rule has unit tests for "fires" and "doesn't fire"
-- [ ] Syncing creates `habit_alerts` rows, and re-syncing doesn't duplicate them
+- [ ] `HeroRules` covers every rule, edge case (heart cap, faint at level 1, rest days, month and timezone boundaries) and idempotency
+- [ ] Running the hero job twice creates no duplicate events, and a 3-day outage is caught up in order
+- [ ] Class switch: unqualified → 409, during the cooldown → 429, success keeps the level
 
 ---
 
 ## Phase 12: Notifications: daily digest email ⬜
 
-**Goal:** once a day, each user with pending alerts gets **one** email that summarises them in the mentor persona.
+**Goal:** once a day, each user with unsent `hero_events` gets **one** email that summarises them in the mentor persona (Part D: cover `LIFE_LOST` at 1 heart left, `LEVEL_DOWN`, `FAINTED`, `LEVEL_UP`; no guilt trips).
 
 **Concepts:** `JavaMailSender` + `MimeMessageHelper`, HTML email templates (Thymeleaf), Strategy pattern (`NotificationChannel`), delivery guarantees (at-least-once vs at-most-once), signed unsubscribe links, a preferences API.
 
 **Hints**
 1. `interface NotificationChannel { void send(User user, Digest digest); }` with an `EmailChannel` implementation. Discord comes later as a second implementation (stretch).
-2. Digest job (`@Scheduled`, after the sync job): for each user with pending `habit_alerts` (`digest_id IS NULL`) → build one digest → send → mark the alerts as sent. **No alerts, no email.**
+2. Digest job (`@Scheduled`, after the sync job): for each user with unsent `hero_events` (`digest_id IS NULL`) → build one digest → send → mark the events as sent. **No events, no email.**
 3. Think through failure: if sending succeeds but marking fails, the user gets a duplicate tomorrow. If you mark first and sending fails, the alert is lost. Pick one and write down why (a digest that occasionally repeats is usually the lesser evil).
 4. Content: Spring AI writes a short intro in the mentor persona from the alert list (reuse Phase 5). **The email must still go out if the AI call fails**, so have a plain template fallback.
 5. HTML: add `spring-boot-starter-thymeleaf` and render `templates/email/digest.html` with `TemplateEngine` into a string. That's server-side rendering for email, not a web frontend.
 6. SMTP for development: a sandbox inbox (e.g. Mailtrap) or a Gmail app password. Use a real provider (Resend, Brevo, SES) later. All of them are configured with `spring.mail.*` properties.
 7. Unsubscribe: every email includes a link like `/api/notifications/unsubscribe?token=...`. The token should be signed (you already have JWT tooling) and the endpoint public.
-8. Preferences API: `GET`/`PUT /api/user/preferences` (alerts on/off, N for "no commits", leaderboard visibility). Validate the input (Phase 9).
+8. Preferences API: `GET`/`PUT /api/user/preferences` (`timezone`, `rest_days`, `alerts_enabled`, `public_profile`) moves to B5 in Part D; the "N for no commits" preference is obsolete. Validate the input (Phase 9).
 
 **Done when**
 - [ ] One digest arrives with all pending alerts, and none is sent when there's nothing to report
@@ -453,7 +461,7 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 **Hints**
 1. Add Testcontainers (Postgres + Redis) and fix `contextLoads()`. Mock the AI and GitHub clients in integration tests.
 2. `@WebMvcTest` your controllers with mocked services, and test the security rules (401/200).
-3. Backend-only means the API docs are your UI. Add `springdoc-openapi` (check which version supports Boot 4) for Swagger UI, and keep `.http` request files in the repo.
+3. The web UI now exists, but the API docs still help the agents and the developer. Add `springdoc-openapi` (check which version supports Boot 4) for Swagger UI, and keep `.http` request files in the repo.
 4. snake_case JSON for v1 compatibility: a global `SNAKE_CASE` naming strategy, or `@JsonProperty` per field. Know the trade-off.
 5. Build an image with `./mvnw spring-boot:build-image`, add `application-prod.yml`, and deploy (v1 used Koyeb).
 
@@ -461,6 +469,58 @@ The frontend is out of scope, but keeping v1's response shape means the v1 Next.
 - [ ] `./mvnw verify` is green with integration tests
 - [ ] Swagger UI documents every endpoint
 - [ ] The app runs in production, and the daily sync + digest fire there
+
+---
+
+# Part D: Hero-pet plan (2026-10-16)
+
+v2's purpose is now a **habit tracker with a Tamagotchi-style hero**, and the yearly "GitHub Wrapped" insights are secondary. The user's scored class character lives on a **Home** screen with **3 hearts**: a day with no GitHub activity costs a heart, and running out drops a level. Showing up earns **XP**, keeps a **streak** and wins hearts back. The yearly insights move to a **Journal** tab, and users can **change class** among the classes they qualify for. An earlier world-map UI was dropped because its levels meant nothing.
+
+**Sources of truth**
+- [`docs/v2-hero-plan.md`](docs/v2-hero-plan.md): product, game rules, backend and UI spec, visual spec. It wins over this file where they disagree.
+- [`docs/api/contract.md`](docs/api/contract.md) + `docs/api/fixtures/`: the API shapes (owned by the integration agent).
+- [`docs/design/`](docs/design/README.md): mockup PNGs, `tokens.json`, `sprites.json`, board sources.
+- [`docs/agents/WORKFLOW.md`](docs/agents/WORKFLOW.md): lanes, branches, worktrees and the step order. [`docs/agents/HANDOFF.md`](docs/agents/HANDOFF.md): the agents' message board.
+
+**Decisions (2026-10-16, don't relitigate)**
+| Topic | Decision |
+|---|---|
+| What counts as active ("fed") | Any GitHub contribution on the contribution calendar **or** any commit authored by the user on **any branch** (branch scan, plan §3) |
+| Forgiveness | **User-picked rest days**, at most 2 weekdays |
+| Regaining hearts | **+1 heart per 3-day streak** (max 3) |
+| Class switching | Any class with score ≥ 40, plus the top-scored class; **7-day cooldown**; level and hearts are kept |
+| GitHub data | GraphQL for all activity (REST only where unavoidable: OAuth, `/user/emails`). Scopes stay `read:user user:email`, **no `repo`** |
+| Visual style | Original pixel-fantasy art ("Pixel Realm" palette, plan §5). No Nintendo/Mario or Wizards of the Coast assets or names |
+
+**What changes in the existing roadmap**
+- **Frontend in scope:** a Next.js 16 (App Router) + React 19 + TypeScript + Tailwind 4 + TanStack Query app in **`web/`**, in this repo, so one PR can change the API and the UI together. Tabs: HOME · JOURNAL · HERO · ARENA · SETTINGS.
+- **Phase 2.6 / 10:** `V4__activity.sql` creates `daily_contributions(user_id, date, calendar_count, branch_commit_count)`; the `commits` table is deferred. Phase 10 adds the **branch scan** (`branch-activity.graphql`, `countBranchCommits`) for days with `calendar_count = 0`.
+- **Phase 11** is now **"Hero engine (lives, XP, levels)"**: `V5__hero.sql` (`hero_state`, `hero_events`, user timezone, rest days, chosen class) and the pure `HeroRules`.
+- **`habit_alerts` → `hero_events`.** The Phase 12 digest reads unsent hero events. `users.no_commit_days` is obsolete (hearts replace "no commits for N days"); the column stays, unused.
+- **Phase 13 → Arena:** rank by hero level, then XP, within the **chosen** class, for users with `public_profile`.
+- **Auth hand-off:** the callback redirects to `FRONTEND_URL/dashboard#token=<jwt>` (a fragment, not `?token=`, so the JWT never reaches server logs or history).
+- **Name** stays "Insight Hub" (a rename is deferred).
+
+**Working agreement: three agents (replaces "the developer implements Phases 10–13")**
+
+Three Claude Code agents build everything, each in its own git worktree and branch. The developer reviews and merges every PR. Agents never merge, never push to `main` and never force-push.
+
+| Agent | Definition | Worktree | Owns | Steps |
+|---|---|---|---|---|
+| **backend** | `.claude/agents/backend-engineer.md` | `../ih-backend` | `src/main/**`, `src/test/**` (except `src/test/**/it/**`), migrations, `application.yml`, `pom.xml` main deps | B1 activity · B2 Phase 9 · B3 daily sync + branch scan · B4 `V5__hero.sql` + `HeroRules` · B5 hero job + `/hero`, `/hero/events`, `/preferences`, `#token` redirect · B6 `PUT /hero/class` · B7 Phase 12 digest · B8 Phase 13 Arena |
+| **ui** | `.claude/agents/ui-engineer.md` | `../ih-ui` | `web/**` except `web/lib/api/types.ts` and `web/public/fixtures/**` | U1 scaffold · U2 title, `/dashboard`, tabs, system states · U3 Home · U4 Journal + Hero sheet · U5 Change class + Settings · U6 Arena |
+| **integration** | `.claude/agents/integration-qa.md` | `../ih-integration` | `docs/**`, `PROGRESS.md`, `AGENTS.md`, `web/lib/api/types.ts`, `web/public/fixtures/**`, `e2e/**`, `.github/workflows/**`, `src/test/**/it/**`, `pom.xml` test deps | I0 docs · I1 shared types · I2 Testcontainers + CI · I3 contract tests · I4 wiring · I5 Playwright e2e · I6 responsive/a11y + release checklist |
+
+- **One small PR per step** against `main`, then stop for review. Branches `backend/bN-…`, `ui/uN-…`, `int/iN-…`, each from fresh `main`; rebase before opening a PR.
+- **I0 merges first.** Then backend and UI run in parallel (the UI works on fixtures and is never blocked by the backend); integration follows both.
+- A change outside an agent's lane is a `REQUEST` in `HANDOFF.md`; the owner makes it. Contract, fixtures and shared types change together in one integration PR.
+- AGENTS.md conventions still apply: no AI attribution, bugs in `BUGS.md`, no token-shaped literals, DTOs only, no secrets in logs.
+- ⚠️ **B23:** until I2 lands, only targeted backend tests (`./mvnw test -Dtest=…`); never boot the app or run the full suite against Neon.
+
+**Open questions (answered in B3 by backend, the proxy timeout in I4 by integration; record the answers here)**
+- Does GitHub's GraphQL `history(since, until)` filter by author date or committer date? (A rebase rewrites the committer date.)
+- Which timezone does GitHub use to bucket contribution-calendar days? If UTC, how do local days map onto it?
+- Is the deploy host's proxy timeout long enough for a sync (worst case about 90 s)? If not, `/sync` goes direct with CORS for that route only.
 
 ---
 
@@ -590,3 +650,9 @@ One entry per session: what was built, what was learned, open questions. Bug det
   - GitGuardian: resolve the two B31 incidents as test credentials.
   - Groq plan limits, to replace the `sync-global: 30/min` placeholder.
 - Next session: Phase 9 (errors as `ProblemDetail` everywhere, validation, logging; no secrets in logs).
+
+### 2026-10-16: Hero-pet plan and three agents (Part D)
+- New direction: a hero-pet habit tracker (3 hearts, XP, levels, streaks, rest days, class switching) with a Next.js web UI in `web/`. Spec in `docs/v2-hero-plan.md`, decisions in Part D.
+- Working agreement changed: three Claude Code agents (backend, UI, integration) build everything, including Phases 10–13, in separate worktrees; the developer reviews and merges. Lanes and step order in `docs/agents/WORKFLOW.md`.
+- I0 (integration): committed the kit (`docs/**`, `.claude/agents/**`) and updated this file and `AGENTS.md`. Phase 11 renamed "Hero engine (lives, XP, levels)"; `habit_alerts` → `hero_events`; `commits` table deferred; `users.no_commit_days` obsolete.
+- Next: backend B1 and UI U1 in parallel, then integration I1/I2.
