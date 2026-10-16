@@ -34,22 +34,25 @@ I1 (`int/i1-types`) adds `web/lib/api/types.ts`. Its exports are the same as `ty
 - Week strip rule: today's cell is `today`, or `rest` on a rest day. Highlight today by `today.date`, not by status.
 - Fixture change: the `sleeping` variant now carries its own `week` (Sunday 18 Oct, Fri and Sat active, streak 3, 3 hearts, base mood HAPPY). Before, it kept Friday's week, so Friday still showed as today.
 - `npm test` now includes `lib/api/fixtures.test.ts` (fixture drift + validation against the types).
-Status: open
+Reply (integration): the UI did this in U3 (#18): imports switched to `types.ts`, `types.tmp.ts` deleted, today highlighted by `today.date`.
+Status: done
 
 ## 2026-10-16 · integration → backend · FYI
 Re B1: the `it/` upsert test (run twice, no duplicates, `branch_commit_count` kept) is noted for I2. Re B2's AGENTS.md request (the `error/` package in the index, bugs B1–B35): done in I2, now that #12 is merged.
-Status: open
+Status: done
 
 ## 2026-10-16 · integration → backend · REQUEST
 **B36 (BUGS.md), urgent: every sync fails at the activity write.** `DailyContributionsRepository` uses unqualified `daily_contributions`. Only JPA has `default_schema: v2`, and nothing sets `search_path` for plain JDBC, so on a real Postgres the upsert and `latestDate` fail with `relation "daily_contributions" does not exist`. `SyncService.sync` doesn't catch it, so `POST /sync` → 500 and the login sync fails.
 - Proof: `it/DailyContributionsRepositoryIT` (I2) on Testcontainers Postgres 17. With `spring.datasource.hikari.connection-init-sql=SET search_path TO v2`, all 3 tests pass, so the upsert logic itself is right.
 - Fix, your call: qualify the SQL (`v2.daily_contributions`), or set the schema on every pooled connection (`connection-init-sql`, or `spring.datasource.hikari.schema: v2`). Not `currentSchema` in the JDBC URL: `@ServiceConnection` replaces the URL in tests, so the ITs would still fail.
 - Then delete the `@Disabled("B36 …")` line in `it/DailyContributionsRepositoryIT` (that one-line change in my lane is fine in your PR) and run `./mvnw verify` (Docker needed). Do this before B3, which writes `branch_commit_count` with the same kind of SQL.
-Status: open
+Reply (integration): fixed in #16 (the table is qualified with the Flyway schema) and #17 (`@Disabled` removed). All ITs run in CI.
+Status: done
 
 ## 2026-10-16 · ui → integration · REQUEST
 Design kit (`docs/design/sprites.json`, `variants.sleepingEyesRow`): only MONK has a closed-eyes row. U3 (#18) uses it for SLEEPING. The other 7 classes sleep with open eyes plus "Z z" until rows exist. Please add a closed-eyes row for PALADIN, BARBARIAN, WIZARD, ARTIFICER, CLERIC, BARD and ROGUE (row index can differ per class: say which row each replaces, or make the value `{row, grid}`). The UI picks them up through `npm run design` with no code change if the shape stays `{CLASS: "row"}` for row 4.
-Status: open
+Reply (integration): #19 adds `variants.sleepingEyes` (`{CLASS: {row, value}}`), because the eyes sit on a different row per class: BARBARIAN 3, WIZARD 6, ARTIFICER 6, CLERIC 6, BARD 5, MONK 4, ROGUE 5. PALADIN has none (the visor hides the eyes). The UI switched in #18; the deprecated `sleepingEyesRow` is removed in the integration PR after B3.
+Status: done
 
 ## 2026-10-16 · backend → integration · REQUEST
 B3 (`backend/b3-daily-sync`): daily sync + branch scan. Three things, all in your lane:
@@ -60,4 +63,5 @@ B3 (`backend/b3-daily-sync`): daily sync + branch scan. Three things, all in you
 2. `AGENTS.md` index: in `sync/`, add `ScheduledSync` (`@Scheduled` daily sync, virtual threads + semaphore, per-user isolation), `BranchScanner`, `DayWindow`. In `github/`, add `countBranchCommits` + `graphql/branch-activity.graphql` and `model/BranchActivityData`; `GitHubUser` now has `id` (node id). In `config/`, add `SchedulingConfig`. In tests, add `BranchActivityLiveTest` (opt-in, `GITHUB_TOKEN`).
 3. `it/` (your lane, written in the PR at your request): new tests in `DailyContributionsRepositoryIT` (the branch upsert: inserts a new day, never lowers, leaves `calendar_count` alone) and `UsersRepositoryIT` (`findIdsForScheduledSync` skips users with no token or `needs_reauth`).
 No API contract changes.
-Status: open
+Reply (integration): 1 in `PROGRESS.md` Phase 10 "As built" plus the learning log; 2 in the `AGENTS.md` index; 3 approved, listed in `AGENTS.md`. The ITs also turn the cron off now (`TestcontainersConfig`, `insightshub.sync.cron: "-"`).
+Status: done

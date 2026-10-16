@@ -52,7 +52,7 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | 0 | Setup, infra & config | 🧑 | ✅ | |
 | 1 | First endpoint: health ping | 🧑 | ✅ | |
 | 2 | Data model for v2 (JPA), steps 1–5 | 🧑 | ✅ | |
-| 2.6 | `V4__activity.sql`: `daily_contributions` (`commits` deferred) | 🤖 backend (B1) | 🟨 B36 open | [#10](https://github.com/tushar27x/insightsHubV2/pull/10) |
+| 2.6 | `V4__activity.sql`: `daily_contributions` (`commits` deferred) | 🤖 backend (B1) | ✅ | [#10](https://github.com/tushar27x/insightsHubV2/pull/10) [#16](https://github.com/tushar27x/insightsHubV2/pull/16) [#17](https://github.com/tushar27x/insightsHubV2/pull/17) |
 | 3 | GitHub GraphQL client | 🤖 | ✅ | [#2](https://github.com/tushar27x/insightsHubV2/pull/2) |
 | 4 | Insights engine (pure Java + first tests) | 🤖 | ✅ | [#3](https://github.com/tushar27x/insightsHubV2/pull/3) |
 | 5 | AI layer with Spring AI | 🤖 | ✅ | [#4](https://github.com/tushar27x/insightsHubV2/pull/4) |
@@ -61,20 +61,20 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | 8 | Rate limiting | 🤖 | ✅ | [#8](https://github.com/tushar27x/insightsHubV2/pull/8) |
 | 9 | Errors, validation, logging | 🤖 backend (B2) | ✅ | [#12](https://github.com/tushar27x/insightsHubV2/pull/12) |
 | | **Part B: New v2 features** | | | |
-| 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | 🟨 | |
+| 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | ✅ (first live run pending) | [#10](https://github.com/tushar27x/insightsHubV2/pull/10) [#20](https://github.com/tushar27x/insightsHubV2/pull/20) |
 | 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | ⬜ | |
 | 12 | Notifications: daily digest email (from `hero_events`) | 🤖 backend (B7) | ⬜ | |
 | 13 | Arena: leaderboards by hero level within the chosen class | 🤖 backend (B8) | ⬜ | |
 | | **Part C: Ship it** | | | |
-| 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | 🟨 I2 👀 | |
+| 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | 🟨 I2 | [#15](https://github.com/tushar27x/insightsHubV2/pull/15) |
 | | **Part D: Hero-pet plan** | | | |
 | D0 | Docs: kit committed, `PROGRESS.md` + `AGENTS.md` updated | 🤖 integration (I0) | ✅ | [#9](https://github.com/tushar27x/insightsHubV2/pull/9) |
-| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U2 | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) |
-| D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | 🟨 I1 | [#13](https://github.com/tushar27x/insightsHubV2/pull/13) |
+| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U3 | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) [#18](https://github.com/tushar27x/insightsHubV2/pull/18) |
+| D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | 🟨 I1, sprites | [#13](https://github.com/tushar27x/insightsHubV2/pull/13) [#19](https://github.com/tushar27x/insightsHubV2/pull/19) |
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 backend: fix **B36** (syncs fail at the activity write), then B3 · 🤖 ui U3 (Home) · 🤖 integration: I2 in review, then I4 (wiring) and I3 (contract tests, after B5).
+**Next up:** 🤖 backend B4 (`V5__hero.sql` + `HeroRules`) · 🤖 ui U4 · 🤖 integration I4 (wiring) and I3 (contract tests), both after B5.
 
 ---
 
@@ -332,7 +332,7 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 
 ---
 
-## Phase 9: Errors, validation, logging ⬜
+## Phase 9: Errors, validation, logging ✅
 
 **Concepts:** `@RestControllerAdvice`, `ProblemDetail` (RFC 9457), custom exceptions, Bean Validation (`@Valid`, `@NotBlank`), SLF4J (`@Slf4j`), log levels per package.
 
@@ -343,14 +343,14 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 4. CORS: the web UI calls `/api/*` through Next `rewrites` on its own origin, so no CORS is needed. The exception is `/sync` if the deploy host's proxy timeout is shorter than a sync (I4 decides); then CORS for that route only, through Spring Security's `.cors(...)`.
 
 **Done when**
-- [ ] All errors return consistent `ProblemDetail` JSON
-- [ ] No secrets in logs
+- [x] All errors return consistent `ProblemDetail` JSON
+- [x] No secrets in logs
 
 ---
 
 # Part B: New v2 features
 
-## Phase 10: Scheduled daily sync & activity history ⬜
+## Phase 10: Scheduled daily sync & activity history ✅
 
 **Goal:** every opted-in user gets synced once a day without logging in, and their activity is stored as history.
 
@@ -368,9 +368,18 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 9. When the job finishes for a user, publish an event (`ApplicationEventPublisher`, e.g. `UserSyncedEvent`). Phase 11 listens for it.
 
 **Done when**
-- [ ] The job runs on schedule and fills `daily_contributions` + `commits` for your user
-- [ ] Re-running it creates no duplicate rows
-- [ ] A broken token for one user doesn't stop the others
+- [ ] The job runs on schedule and fills `daily_contributions` for your user (`commits` deferred). Not run live yet: booting the app uses Neon
+- [x] Re-running it creates no duplicate rows (`it/DailyContributionsRepositoryIT`)
+- [x] A broken token for one user doesn't stop the others (`ScheduledSyncTest`)
+
+**As built** (B1 #10, B36 fix #16/#17, B3 #20)
+- `sync/ScheduledSync`: `@Scheduled(cron = "${insightshub.sync.cron}", zone = "UTC")`, default `0 0 3 * * *` (`"-"` turns it off, as the ITs do). Users with a token and no `needs_reauth` (`UsersRepository.findIdsForScheduledSync`), one virtual thread each, at most `insightshub.sync.concurrency` (4) at once via a `Semaphore`. Each user is isolated: failures are logged and counted, and a summary (synced / skipped / needs re-auth / failed) is logged per run. Two instances would both run it; the cooldown claim makes the second sync of a user a no-op (ShedLock is still the stretch answer to hint 8).
+- `SyncService.scheduledSync` claims the per-user cooldown like login and refresh, so a user who refreshed in the last 10 minutes is skipped. It doesn't use the `sync-global` cap.
+- **Branch scan** (`sync/BranchScanner`, `graphql/branch-activity.graphql`, `GitHubGraphQlClient.countBranchCommits`): for the last `branch-scan-days` (2: today and yesterday) that the calendar shows as 0, one call per day counts the user's commits on the 25 newest branches of their 20 most recently pushed repos (`author: {id}` = the GraphQL node id, now in `GitHubUser.id`). `upsertBranchCounts` writes `branch_commit_count` with `GREATEST`, so a count never goes down (commits stay counted after a squash merge deletes the branch) and `calendar_count` is left alone.
+- **Answer: `history(since, until)` filters on the committer date**, not the author date. Verified live (`BranchActivityLiveTest`): a spring-boot commit authored 2026-04-30 and committed 2026-10-14 is found only around 14 Oct. So a rebase moves commits to the rebase day: rebasing your own old commits makes today active. The author filter still means only the user's own commits count.
+- **Answer: calendar days are GitHub's own buckets, not UTC.** A commit counts on the day of its own timestamp's timezone (usually the user's); PRs and issues opened on the web count in the browser's timezone. So the calendar's dates are stored as the user's local dates, unconverted. The branch scan uses explicit local-midnight windows (`sync/DayWindow`, DST days 23 or 25 h), in UTC until B4 adds `users.timezone`.
+- Cost: the scan is 1 GraphQL point per call, and runs only for empty days.
+- Hint 9 (`UserSyncedEvent`) isn't built: B4/B5 decide how the hero engine hears about a sync.
 
 ---
 
@@ -685,3 +694,10 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - CI (`.github/workflows/ci.yml`): backend `./mvnw verify`; web `design:check` (before `build`, which regenerates the design files), lint, test (incl. the I1 fixture test), build. No secrets.
 - Locally: 215 unit tests pass (5 opt-in live tests skipped), 6 ITs (3 skipped for B36), about 18 s with images cached. Docker needed the developer in the `docker` group.
 - Working agreement: `--force-with-lease` is now allowed on your own open PR branch after a rebase, after checking the remote has no commits you lack (WORKFLOW.md).
+
+### 2026-10-16: B36 fixed, U3, closed-eye sprites, B3 (🤖 all lanes)
+- **B36 fixed** (#16, #17): `DailyContributionsRepository` qualifies its table with the Flyway schema (`spring.flyway.default-schema`). Chosen over a pool `search_path` because Neon's pooler (PgBouncer, transaction mode) doesn't reliably keep session settings. All 6 ITs run in CI with none skipped.
+- **U3** (#18, ui): the Home screen. The UI now imports `web/lib/api/types.ts`; `types.tmp.ts` is gone.
+- **Closed-eye sprites** (#19, integration): the eyes sit on a different row per class, so `variants.sleepingEyesRow` (MONK, row 4) became `variants.sleepingEyes` (`{CLASS: {row, value}}`, 7 classes; PALADIN's visor already hides the eyes). The old key was removed after the UI switched. Lesson: a JSON shape with a `_doc` string next to the entries needs a cast through `unknown` in TS.
+- **B3** (#20, backend): the daily sync and branch scan, see Phase 10 "As built". 255 unit tests, 9 ITs. The ITs turn the cron off (`insightshub.sync.cron: "-"`).
+- #20 conflicted with #18 on `HANDOFF.md` (both appended at the bottom). Integration rebased the backend's branch at the developer's request and pushed with a lease pinned to the backend's last commit. Appending to `HANDOFF.md` from two lanes at once will keep conflicting: resolve by keeping both entries in merge order.
