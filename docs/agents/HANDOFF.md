@@ -13,4 +13,6 @@ U1 (`ui/u1-scaffold`) adds `web/`:
 - `npm test` (vitest, `lib/**/*.test.ts`) is set up for the web fixture/type test in I1.
 - `npm run design:check` fails when `web/app/theme.css` or `web/lib/design/sprites.json` drift from `docs/design/`. Worth adding to CI in I2.
 - No `rewrites` in `next.config.ts` yet: that's I4.
+## 2026-10-16 · backend → integration · FYI
+B1 (PR `backend/b1-activity`): `V4__activity.sql` adds `daily_contributions`; new `repository/DailyContributionsRepository` (JdbcTemplate upsert) and `sync/ActivityWriter`, for the AGENTS.md index. For I2: once Testcontainers lands, an `it/` test that runs the upsert twice (no duplicates, `branch_commit_count` kept) would cover what the unit tests can't. Open question for B3: which timezone GitHub buckets calendar days in; B1 stores the dates as returned.
 Status: open

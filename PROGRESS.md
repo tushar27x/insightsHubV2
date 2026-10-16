@@ -656,3 +656,12 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Working agreement changed: three Claude Code agents (backend, UI, integration) build everything, including Phases 10–13, in separate worktrees; the developer reviews and merges. Lanes and step order in `docs/agents/WORKFLOW.md`.
 - I0 (integration): committed the kit (`docs/**`, `.claude/agents/**`) and updated this file and `AGENTS.md`. Phase 11 renamed "Hero engine (lives, XP, levels)"; `habit_alerts` → `hero_events`; `commits` table deferred; `users.no_commit_days` obsolete.
 - Next: backend B1 and UI U1 in parallel, then integration I1/I2.
+
+### 2026-10-16: B1 built, activity history (🤖, Phase 2.6 / 10)
+- `V4__activity.sql`: `daily_contributions(user_id → users ON DELETE CASCADE, date, calendar_count, branch_commit_count, PRIMARY KEY (user_id, date))`, counts `NOT NULL DEFAULT 0` with `>= 0` checks. No JPA entity (`ddl-auto: validate` only checks entities); B4/B5 can add one if reads need it.
+- `DailyContributionsRepository` (`JdbcTemplate`): one batched `INSERT … ON CONFLICT (user_id, date) DO UPDATE SET calendar_count = EXCLUDED.calendar_count`. It never touches `branch_commit_count` (the B3 branch scan owns it). Answer to the Phase 10 hint: `save()` does a SELECT per row; the native upsert writes a year in one batch and is idempotent on the key.
+- `ActivityWriter` (separate `@Transactional` bean, like `InsightsWriter`): the first sync backfills every calendar day GitHub returns (about a year, zero days included, so a stored 0 means "checked, nothing"); later syncs rewrite from 7 days before the latest stored day onwards (`OVERLAP_DAYS`), which also fills gaps after missed syncs. GitHub still fetches the full year, because the insights need it.
+- `SyncService.sync` writes the calendar right after the GraphQL fetch, before the slow AI step, from `InsightsEngine.sortedDays` (now public). A GitHub failure or 401 writes nothing.
+- **Assumption (verified in B3):** dates are stored exactly as GitHub's calendar returns them; which timezone GitHub buckets them in is still open.
+- Tests: 5 `ActivityWriterTest` (backfill, overlap window, gap across a month boundary, stored day ahead of the calendar, empty calendar) + 4 `DailyContributionsRepositoryTest` (SQL, parameter mapping, empty batch skipped, no rows → empty) + 2 new `SyncServiceTest` (sorted calendar written before AI; no user → no days). The real upsert against Postgres waits for Testcontainers (I2). App not booted (B23).
+- No new bugs.
