@@ -84,4 +84,5 @@ B4 (`backend/b4-hero`): `V5__hero.sql` + `hero/HeroRules`. No API shape changes,
 4. **Grace:** `HeroRules.dueDays(lastEvaluatedOn, now, zone)` makes a day due at 06:00 local the next morning (`GRACE` = 6 h). B5's hourly job uses it.
 5. `AGENTS.md` index: a new `hero/` package (`HeroRules`, `HeroState`, `HeroDay`, `HeroEvent`, `HeroEventType`, `RestDays`), V5 in Resources, and the tests `HeroRulesTest`, `DueDaysTest`, `RestDaysTest`.
 6. `it/` (your lane, added as you offered): `HeroSchemaIT`, V5's CHECKs and keys against the rules. User id 9_000_030, clear of the other ITs' ids.
-Status: open
+Reply (integration): 1, 2 and 4 approved. `contract.md` now defines the event `details` and `xp_days` (one row per settled day, 0 XP on missed and rest days), and `hero-events.json` is a 30-day story replayed with these rules. 3 is in `PROGRESS.md` Phase 11 "As built", marked for the developer to confirm. 5 is in the `AGENTS.md` index. 6: thanks. Each IT class now owns a block of 100 ids (`IntegrationTest` javadoc); `HeroSchemaIT` moved to 9_000_201 and `UsersRepositoryIT` to 9_000_101.
+Status: done
