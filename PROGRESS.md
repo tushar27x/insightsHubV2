@@ -665,3 +665,15 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - **Assumption (verified in B3):** dates are stored exactly as GitHub's calendar returns them; which timezone GitHub buckets them in is still open.
 - Tests: 5 `ActivityWriterTest` (backfill, overlap window, gap across a month boundary, stored day ahead of the calendar, empty calendar) + 4 `DailyContributionsRepositoryTest` (SQL, parameter mapping, empty batch skipped, no rows → empty) + 2 new `SyncServiceTest` (sorted calendar written before AI; no user → no days). The real upsert against Postgres waits for Testcontainers (I2). App not booted (B23).
 - No new bugs.
+
+### 2026-10-16: B2 built, Phase 9 errors, validation, logging (🤖)
+- One error format everywhere: `application/problem+json` with `{type, title, status, detail, instance}`. `type` is always `about:blank` (Spring 7 leaves it null, B34). `instance` is the request path, never the query string.
+  - Controllers: `error/ApiExceptionHandler` (`ResponseEntityExceptionHandler` + `GitHubApiException` → 502 + catch-all 500 with a generic detail; exception text is logged, never returned).
+  - Before controllers: 401/403 from `SecurityConfig` (keeps Spring's `WWW-Authenticate`, fixed detail), 429 from `RateLimitInterceptor`, both via `ProblemDetails.write`.
+  - Container errors: `error/ProblemErrorController` replaces Boot's `BasicErrorController` on `/error`.
+- Domain errors: `TooManyRequestsException` (429 + `Retry-After`, reused by B6's class cooldown). `POST /sync`'s cooldown/busy now returns a ProblemDetail body (it was an empty 429). GitHub failures during login are now 502 (were 500).
+- Validation: 400 adds `errors: [{field, message}]`, with fields converted to snake_case (B35). The contract addition is proposed to integration. The callback's `code`/`state`/`error` are capped at 256 chars, and `error` must match `[a-z_]+` because it's echoed in the 400.
+- Logging: audited every `log.*` call and every exception message; none carries a token or secret. `application.yml` pins `org.hibernate.orm.jdbc.bind`, `org.springframework.web.HttpLogging` (would log the OAuth form with the client secret), `org.springframework.web.client` and `org.springframework.security.oauth2` at WARN.
+- For B5: Jackson 3 rejects `null`/missing values for primitive fields (`FAIL_ON_NULL_FOR_PRIMITIVES`) with "Failed to read request" before validation runs, so use boxed types in request DTOs to get field errors.
+- Tests: 9 handler (standalone MockMvc, every error kind) + 3 `/error` + 3 `ProblemDetails` + 2 security writers + 10 new assertions/tests in `AuthApiTest` (problem bodies, callback validation, no echo of tokens) + `RateLimitApiTest` shape. App not booted (B23).
+- Bug log: B34, B35.
