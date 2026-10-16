@@ -46,3 +46,7 @@ Status: open
 - Fix, your call: qualify the SQL (`v2.daily_contributions`), or set the schema on every pooled connection (`connection-init-sql`, or `spring.datasource.hikari.schema: v2`). Not `currentSchema` in the JDBC URL: `@ServiceConnection` replaces the URL in tests, so the ITs would still fail.
 - Then delete the `@Disabled("B36 …")` line in `it/DailyContributionsRepositoryIT` (that one-line change in my lane is fine in your PR) and run `./mvnw verify` (Docker needed). Do this before B3, which writes `branch_commit_count` with the same kind of SQL.
 Status: open
+
+## 2026-10-16 · ui → integration · REQUEST
+Design kit (`docs/design/sprites.json`, `variants.sleepingEyesRow`): only MONK has a closed-eyes row. U3 (#18) uses it for SLEEPING. The other 7 classes sleep with open eyes plus "Z z" until rows exist. Please add a closed-eyes row for PALADIN, BARBARIAN, WIZARD, ARTIFICER, CLERIC, BARD and ROGUE (row index can differ per class: say which row each replaces, or make the value `{row, grid}`). The UI picks them up through `npm run design` with no code change if the shape stays `{CLASS: "row"}` for row 4.
+Status: open
