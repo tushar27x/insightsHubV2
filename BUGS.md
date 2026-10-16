@@ -38,6 +38,8 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 | [B31](#b31) | 6 | GitGuardian flagged two fake test AES keys as leaked secrets | Process |
 | [B32](#b32) | 7 | `RedisCacheManagerBuilderCustomizer` not on the classpath: Boot 4 moved caching into its own starter | Dependency |
 | [B33](#b33) | 7 | Removing the "unused" `spring-boot-starter-security-test` broke all `@WebMvcTest` slices | Dependency |
+| [B34](#b34) | 9 | Spring 7 `ProblemDetail` has no `type` by default, so error bodies lacked a key the contract lists | Dependency |
+| [B35](#b35) | 9 | Validation errors named Java fields (`restDays`), not the API's snake_case keys | Code |
 
 ---
 
@@ -259,3 +261,18 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Root cause:** the module is used without being imported. Its `META-INF/spring/org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest.includes` and `...AutoConfigureMockMvc.imports` files add Spring Security's auto-configuration (`SecurityAutoConfiguration`, `ServletWebSecurityAutoConfiguration`, ...) to `@WebMvcTest` slices. Without them, the slice has no Spring Security, so no `HttpSecurity` builder.
 - **Fix:** kept the dependency, with a pom comment saying why.
 - **Lesson:** "no imports" doesn't mean "unused" for Spring Boot starters; they often contribute auto-configuration through `META-INF/spring/*.imports` files. Run the tests before removing a dependency. Same Boot 4 module split as B19 and B32.
+
+### B34
+**Spring 7 `ProblemDetail` has no `type` by default** · Phase 9 · Dependency
+- **Symptom:** the first `ApiExceptionHandlerTest` run failed 8 of 8 on `No value at JSON path "$.type"`, and `ProblemDetails.write` threw a `NullPointerException` on `getType().toString()`.
+- **Root cause:** in Spring Framework 7, `ProblemDetail.forStatus(...)` leaves `type` null, and the JSON leaves it out. RFC 9457 reads a missing `type` as `about:blank`, so this is valid, but `docs/api/contract.md` lists `type` in every error body. (Spring 6 filled in `about:blank`.)
+- **Fix:** `ProblemDetails.complete` sets `type: about:blank` and `instance` whenever they're missing. Every error path goes through it: the controller advice, the `/error` controller, the 401/403 writers and the rate-limit interceptor.
+- **Lesson:** test the exact JSON shape of an error, not just the status code. Defaults like this changed between Spring 6 and 7 without any compile error.
+
+### B35
+**Validation errors named Java fields, not the API's keys** · Phase 9 · Code
+- **Symptom:** a test body with an invalid `restDays` came back as `errors[].field = "restDays"`, while every key in the API is snake_case (`rest_days`).
+- **Root cause:** Bean Validation reports the Java property path. The DTOs map to snake_case through `@JsonNaming`, which validation doesn't know about.
+- **Fix:** `ApiExceptionHandler` converts each field path to snake_case (`week[0].restDays` → `week[0].rest_days`). Found before any endpoint had a request body; B5's `PUT /preferences` is the first one.
+- **Lesson:** error payloads have to use the same names as the request the client sent.
+

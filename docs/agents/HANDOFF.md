@@ -16,3 +16,10 @@ U1 (`ui/u1-scaffold`) adds `web/`:
 ## 2026-10-16 · backend → integration · FYI
 B1 (PR `backend/b1-activity`): `V4__activity.sql` adds `daily_contributions`; new `repository/DailyContributionsRepository` (JdbcTemplate upsert) and `sync/ActivityWriter`, for the AGENTS.md index. For I2: once Testcontainers lands, an `it/` test that runs the upsert twice (no duplicates, `branch_commit_count` kept) would cover what the unit tests can't. Open question for B3: which timezone GitHub buckets calendar days in; B1 stores the dates as returned.
 Status: open
+
+## 2026-10-16 · backend → integration · REQUEST
+B2 (`backend/b2-errors`): every error is now `application/problem+json` `{type: "about:blank", title, status, detail, instance: <path>}`. Full per-status list sent to the integration session. Two things for the contract:
+1. Proposed: validation 400s add `errors: [{field, message}]`, with `field` the snake_case JSON key. First used by B5's `PUT /preferences`.
+2. `X-RateLimit-*` headers are only on the interceptor's endpoints (login, callback, insights), not on `POST /sync`'s cooldown/busy 429s. Both have `Retry-After`.
+3. `AGENTS.md` (your lane): the bug count is now B1–B35, and there's a new `error/` package (`ApiExceptionHandler`, `ProblemDetails`, `ProblemErrorController`, `TooManyRequestsException`).
+Status: open
