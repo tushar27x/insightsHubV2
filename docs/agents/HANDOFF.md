@@ -65,3 +65,23 @@ B3 (`backend/b3-daily-sync`): daily sync + branch scan. Three things, all in you
 No API contract changes.
 Reply (integration): 1 in `PROGRESS.md` Phase 10 "As built" plus the learning log; 2 in the `AGENTS.md` index; 3 approved, listed in `AGENTS.md`. The ITs also turn the cron off now (`TestcontainersConfig`, `insightshub.sync.cron: "-"`).
 Status: done
+
+## 2026-10-17 · backend → integration · REQUEST
+B4 (`backend/b4-hero`): `V5__hero.sql` + `hero/HeroRules`. No API shape changes, but V5 has three additions to the plan's schema, and §2 had three gaps I filled. Please check them before B5 and add the event details to `contract.md`:
+1. **Schema additions** (internal, no response changes):
+   - `hero_days(user_id, on_date, xp_gained, streak)`, one row per settled day. `GET /hero/events` returns `xp_days[{on_date, xp, streak}]`, and `hero_events` can't rebuild XP and streak.
+   - `users.rest_days_previous` + `users.rest_days_from`. "A change applies from the next local day" needs the old mask when the job catches up on days before the change (`RestDays.maskOn`).
+   - Rest-day mask: bit 0 = Monday … bit 6 = Sunday. The CHECK allows at most 2 bits set and values below 128.
+2. **Event `details`** (the fixture shows the first three; the rest are mine):
+   - `LIFE_LOST {lives, reason: "NO_ACTIVITY"}`. On the last heart, `lives` is 0 and a `LEVEL_DOWN` or `FAINTED` follows on the same date.
+   - `LIFE_GAINED {lives, streak}`, `LEVEL_UP {from, to}`, `LEVEL_DOWN {from, to}`.
+   - `FAINTED {}`, `RESTED {}`.
+   - On a day with both, the order is `LEVEL_UP` then `LIFE_GAINED`.
+3. **Rule gaps I filled** (for PROGRESS.md; the developer may want to confirm):
+   - **Sign-up day:** "only days after sign-up can cost hearts", so an inactive sign-up day has no effect (no event, streak unchanged), and an active one counts normally.
+   - **Seed:** besides the XP (10 per active day in the 90 days up to yesterday, hearts 3, no events), the streak is the run of active days ending yesterday.
+   - **Level-down:** XP goes to 0 in the new level ("back to the start of that level"). A faint at level 1 also resets XP to 0 and refills the hearts.
+4. **Grace:** `HeroRules.dueDays(lastEvaluatedOn, now, zone)` makes a day due at 06:00 local the next morning (`GRACE` = 6 h). B5's hourly job uses it.
+5. `AGENTS.md` index: a new `hero/` package (`HeroRules`, `HeroState`, `HeroDay`, `HeroEvent`, `HeroEventType`, `RestDays`), V5 in Resources, and the tests `HeroRulesTest`, `DueDaysTest`, `RestDaysTest`.
+6. `it/` (your lane, added as you offered): `HeroSchemaIT`, V5's CHECKs and keys against the rules. User id 9_000_030, clear of the other ITs' ids.
+Status: open
