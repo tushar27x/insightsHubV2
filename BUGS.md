@@ -40,6 +40,7 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 | [B33](#b33) | 7 | Removing the "unused" `spring-boot-starter-security-test` broke all `@WebMvcTest` slices | Dependency |
 | [B34](#b34) | 9 | Spring 7 `ProblemDetail` has no `type` by default, so error bodies lacked a key the contract lists | Dependency |
 | [B35](#b35) | 9 | Validation errors named Java fields (`restDays`), not the API's snake_case keys | Code |
+| [B36](#b36) | 2.6 | `daily_contributions` SQL is unqualified and resolves outside `v2`, so every sync fails at the activity write | Code |
 
 ---
 
@@ -187,6 +188,7 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Risk:** a migration applied before review can't be changed afterwards. Flyway checksums applied migrations and refuses to start when a file differs, which forces a `flyway repair` or a fix-up migration.
 - **Workaround (this PR):** ran the unit tests with `-Dtest='!InsightshubApplicationTests'`, and dry-ran V2 on Neon inside `BEGIN … ROLLBACK` (Postgres DDL is transactional), so nothing was committed. A local Docker Postgres wasn't usable (no permission on `/var/run/docker.sock`).
 - **Proper fix (Phase 14):** Testcontainers + `@ServiceConnection`, so tests never touch Neon. Until then, exclude `contextLoads` when a PR adds a migration.
+- **Fixed in I2:** `contextLoads` became `it/ApplicationContextIT` on Testcontainers Postgres + Redis (`./mvnw verify`, Docker needed). Surefire and Failsafe also point `spring.datasource.url` and the Redis host at unresolvable `*.invalid` hosts, so a test that boots the app without the containers fails to connect instead of reaching Neon. `./mvnw test` is unit-only and safe to run in full.
 - **Lesson:** a "does the context load?" test against a shared database isn't harmless: it runs every startup side effect, migrations included.
 
 ### B24
@@ -276,3 +278,10 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Fix:** `ApiExceptionHandler` converts each field path to snake_case (`week[0].restDays` → `week[0].rest_days`). Found before any endpoint had a request body; B5's `PUT /preferences` is the first one.
 - **Lesson:** error payloads have to use the same names as the request the client sent.
 
+### B36
+**`daily_contributions` SQL is unqualified and resolves outside `v2`, so every sync fails at the activity write** · Phase 2.6 (B1) · Code · found by integration in I2, open
+- **Symptom:** `DailyContributionsRepositoryIT` against a real Postgres 17: `ERROR: relation "daily_contributions" does not exist` on both the upsert and `latestDate`. `SyncService.sync` calls `ActivityWriter.writeCalendar` without a catch, so a sync throws there: `POST /api/user/sync` → 500, and the login sync fails (logged, login still succeeds).
+- **Root cause:** `DailyContributionsRepository` uses plain JDBC with unqualified table names. Only JPA has `hibernate.default_schema: v2`, Flyway sets the schema only while migrating, and neither the JDBC URL nor the pool sets `search_path`. A connection's default `search_path` is `"$user", public`, and the table lives in `v2`. Not checked against Neon (the integration lane doesn't connect to it), but nothing in the config would make it different there.
+- **Why the unit tests missed it:** `DailyContributionsRepositoryTest` and `ActivityWriterTest` mock `JdbcTemplate` and the repository, so no SQL ever ran.
+- **Fix (backend):** qualify the SQL (`v2.daily_contributions`), or set the schema for every pooled connection (`spring.datasource.hikari.connection-init-sql` or the `schema` property). A `currentSchema` parameter in the JDBC URL would fix Neon but not the tests, because `@ServiceConnection` supplies its own URL. Then remove `@Disabled("B36 …")` from `it/DailyContributionsRepositoryIT`.
+- **Lesson:** SQL that bypasses JPA needs a test against a real database. Mocked `JdbcTemplate` tests check what you send, not whether Postgres accepts it.

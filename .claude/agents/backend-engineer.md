@@ -26,7 +26,7 @@ You may edit `src/main/**`, `src/test/**` (not `src/test/**/it/**`), `src/main/r
 - Verify the two open questions in plan §3 (whether `history()` filters on author or committer date; GitHub's calendar timezone) with a small live test against the developer's token *only if* `GITHUB_TOKEN` is set. Otherwise document what you assumed.
 
 ## ⚠️ Database safety (B23)
-Until the integration agent lands Testcontainers (I2), any full test run or app boot applies Flyway to the **live Neon DB**. Run only targeted unit tests (`./mvnw test -Dtest=ClassNameTest`). Never boot the app or run `./mvnw test`/`verify` without explicit permission. Never edit an applied migration; add a new `V__` file instead.
+Since I2, tests never touch Neon: `./mvnw test` runs all unit tests offline, and `./mvnw verify` adds the Testcontainers integration tests in `src/test/**/it/` (Docker needed; that folder is the integration lane, so ask there for new ITs or write them in your PR and say so). Booting the app (`spring-boot:run`) still applies Flyway to the **live Neon DB**: never without explicit permission. Never edit an applied migration; add a new `V__` file instead.
 
 ## Definition of done for each PR
 - Targeted tests green, with the commands listed in the PR.
