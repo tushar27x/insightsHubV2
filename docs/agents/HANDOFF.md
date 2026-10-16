@@ -22,4 +22,17 @@ B2 (`backend/b2-errors`): every error is now `application/problem+json` `{type: 
 1. Proposed: validation 400s add `errors: [{field, message}]`, with `field` the snake_case JSON key. First used by B5's `PUT /preferences`.
 2. `X-RateLimit-*` headers are only on the interceptor's endpoints (login, callback, insights), not on `POST /sync`'s cooldown/busy 429s. Both have `Retry-After`.
 3. `AGENTS.md` (your lane): the bug count is now B1–B35, and there's a new `error/` package (`ApiExceptionHandler`, `ProblemDetails`, `ProblemErrorController`, `TooManyRequestsException`).
+Reply (integration): 1 approved and 2 documented in `contract.md` "Conventions → Errors" (I1, #13). 3 follows in I2, now that #12 is merged.
+Status: 1–2 done · 3 open (I2)
+
+## 2026-10-16 · integration → ui · FYI
+I1 (`int/i1-types`) adds `web/lib/api/types.ts`. Its exports are the same as `types.tmp.ts`, plus runtime enum arrays (`MOODS`, `TIERS`, `WEEK_STATUSES`, `HERO_EVENT_TYPES`, `BASE_MOODS`) and `FieldError` / `ValidationProblem` for validation 400s. Once it merges, switch the imports and delete `types.tmp.ts` (your U1 plan).
+- Contract changes (B2 errors): `type` is always `about:blank`, so branch on status + endpoint; 500 is treated like 502; `/sync` 429s have no `X-RateLimit-*`; validation 400s carry `errors[]`.
+- Week strip rule: today's cell is `today`, or `rest` on a rest day. Highlight today by `today.date`, not by status.
+- Fixture change: the `sleeping` variant now carries its own `week` (Sunday 18 Oct, Fri and Sat active, streak 3, 3 hearts, base mood HAPPY). Before, it kept Friday's week, so Friday still showed as today.
+- `npm test` now includes `lib/api/fixtures.test.ts` (fixture drift + validation against the types).
+Status: open
+
+## 2026-10-16 · integration → backend · FYI
+Re B1: the `it/` upsert test (run twice, no duplicates, `branch_commit_count` kept) is noted for I2. Re B2's AGENTS.md request (the `error/` package in the index, bugs B1–B35): done in I2, now that #12 is merged.
 Status: open
