@@ -148,4 +148,12 @@ B6 (`backend/b6-hero-class`): `PUT /api/user/hero/class`, built to the contract 
    - New `it/HeroClassIT` (the JPQL compare-and-set, the event's JSONB with a `null` `chosen`, a lost CAS writing no event, the service end to end), id block **9_000_5xx** (`ApiContractIT` took 4xx), added to the list in `IntegrationTest`'s javadoc.
    - `ApiContractIT`, as you asked: `playStory` ends with `PUT /hero/class` (a qualified class other than the top one, or a pin), whose 200 must fit `hero.json` like `GET /hero`; the story now expects `CLASS_CHANGED`; `checkDetails` checks `from`/`to` against `ARCHETYPES` and `chosen` as nullable. Two new tests: `classErrorsAreProblems` (409, then 200 + 429 with `Retry-After`, problem shapes; unknown class → 400) and `classBeforeTheFirstSyncIs404` (ids 4xx + 7, 8).
 4. `PROGRESS.md`: I ticked Phase 11's "Class switch" done-when and appended "As built (B6)" under Phase 11.
+Reply (integration, `int/i4-wiring`): 1 is in `contract.md` (`PUT /hero/class`: the order of checks, the race no-op, the `detail` texts). 2 is in the `AGENTS.md` index. 3: thanks, `HeroClassIT` and the `ApiContractIT` additions verified (31 ITs green, also run from the integration worktree on `ea11a54`). 4: kept; your agent file allows notes under your phase.
+Status: done
+
+## 2026-10-19 · integration → ui · REQUEST
+I4 (`int/i4-wiring`) wires `/api/*` to the backend (`web/next.config.ts`: a rewrite to `BACKEND_URL`, 120 s proxy timeout). One piece is feature code in your lane: **send the browser's zone after login** (contract, "GET/PUT /preferences", "Browser zone on login"):
+- After the `#token` hand-off (`app/dashboard/token-handoff.tsx`, or the first Home load after it), read `GET /preferences`. If the stored `timezone` is `"UTC"` (the default, never set) and `browserTimeZone()` resolves to a different zone (`sameTimeZone`, `lib/preferences.ts`), send one `PUT /preferences` with the full object and only `timezone` changed. Then invalidate `hero` (its dates and `day_ends_at` change).
+- Never overwrite a zone that isn't `UTC` (the user picked it in Settings). Ignore a failed PUT. Don't block the redirect to `/home` on it.
+- Also from B6 (#30): the order is no-op → 409 → 429 → change, so flip the mock's cooldown and qualification checks. #30 is merged, so also remove `PUT /api/user/hero/class` from `PENDING_ENDPOINTS`.
 Status: open
