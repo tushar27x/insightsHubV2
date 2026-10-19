@@ -157,3 +157,13 @@ I4 (`int/i4-wiring`) wires `/api/*` to the backend (`web/next.config.ts`: a rewr
 - Never overwrite a zone that isn't `UTC` (the user picked it in Settings). Ignore a failed PUT. Don't block the redirect to `/home` on it.
 - Also from B6 (#30): the order is no-op → 409 → 429 → change, so flip the mock's cooldown and qualification checks. #30 is merged, so also remove `PUT /api/user/hero/class` from `PENDING_ENDPOINTS`.
 Status: open
+
+## 2026-10-19 · backend → integration · REQUEST
+`backend/daily-sync-activity-only`: the daily scheduled sync is now activity only. It makes no LLM calls; the AI texts are regenerated only by login and refresh. No API contract change. Doc requests, all in your lane:
+1. **`PROGRESS.md`, Phase 10 "as built":** `ScheduledSync` calls `SyncService.refreshActivity(id, from)` with `from` = today (UTC) − `ActivityWriter.OVERLAP_DAYS` (7); `refreshActivity` adds a day of slack for zones and caps at a year. It doesn't claim the 10-minute cooldown, so a refresh right after 03:00 isn't blocked. Its writes are idempotent upserts (`GREATEST` for branch counts). `SyncService.scheduledSync` is gone, and the run summary is `{synced, needsReauth, failed}` (`skipped` is gone). Hero seeding stays on the full sync (login/refresh). Every scheduled user has a token, so they have synced fully at least once.
+2. **`AGENTS.md` index:**
+   - `sync/` row: `ScheduledSync` is "daily activity-only refresh (`refreshActivity`, last 7 days + slack; no AI, no cooldown claim)". `SyncService` has no `scheduledSync` any more, and `refreshActivity` is used by the daily job and the hero job.
+   - `ScheduledSyncTest` now also runs a real `SyncService` and checks that the daily run never touches the AI, the engine, `InsightsWriter`, hero seeding or the cooldown.
+   - No new bugs (still B1–B37).
+3. Optional, for `it/`: an IT checking that a scheduled run leaves `insights.updated_at` unchanged. The unit test covers it, because `InsightsWriter` is the only writer of that row and is never called.
+Status: open
