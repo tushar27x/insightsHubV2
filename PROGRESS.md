@@ -62,19 +62,19 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | 9 | Errors, validation, logging | 🤖 backend (B2) | ✅ | [#12](https://github.com/tushar27x/insightsHubV2/pull/12) |
 | | **Part B: New v2 features** | | | |
 | 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | ✅ (first live run pending) | [#10](https://github.com/tushar27x/insightsHubV2/pull/10) [#20](https://github.com/tushar27x/insightsHubV2/pull/20) |
-| 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | 🟨 B4, B5 | [#22](https://github.com/tushar27x/insightsHubV2/pull/22) [#25](https://github.com/tushar27x/insightsHubV2/pull/25) |
+| 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | ✅ | [#22](https://github.com/tushar27x/insightsHubV2/pull/22) [#25](https://github.com/tushar27x/insightsHubV2/pull/25) [#30](https://github.com/tushar27x/insightsHubV2/pull/30) |
 | 12 | Notifications: daily digest email (from `hero_events`) | 🤖 backend (B7) | ⬜ | |
 | 13 | Arena: leaderboards by hero level within the chosen class | 🤖 backend (B8) | ⬜ | |
 | | **Part C: Ship it** | | | |
 | 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | 🟨 I2, I3 | [#15](https://github.com/tushar27x/insightsHubV2/pull/15) |
 | | **Part D: Hero-pet plan** | | | |
 | D0 | Docs: kit committed, `PROGRESS.md` + `AGENTS.md` updated | 🤖 integration (I0) | ✅ | [#9](https://github.com/tushar27x/insightsHubV2/pull/9) |
-| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U5 | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) [#18](https://github.com/tushar27x/insightsHubV2/pull/18) [#23](https://github.com/tushar27x/insightsHubV2/pull/23) |
+| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U6 (Arena shell; the board after B8) | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) [#18](https://github.com/tushar27x/insightsHubV2/pull/18) [#23](https://github.com/tushar27x/insightsHubV2/pull/23) |
 | D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | 🟨 I1, sprites, hero-events | [#13](https://github.com/tushar27x/insightsHubV2/pull/13) [#19](https://github.com/tushar27x/insightsHubV2/pull/19) |
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 backend B6 (`PUT /hero/class`, in progress) · 🤖 ui U6 (Arena shell, in review) · 🤖 integration I4 (wiring) after I3.
+**Next up:** 🤖 backend B7 (Phase 12 digest) · 🤖 ui: the browser-zone REQUEST, the B6 mock follow-ups, then the Arena board after B8 · 🤖 integration I5 (Playwright e2e). Run it locally: [`docs/run-locally.md`](docs/run-locally.md).
 
 ---
 
@@ -383,7 +383,7 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 
 ---
 
-## Phase 11: Hero engine (lives, XP, levels) 🟨
+## Phase 11: Hero engine (lives, XP, levels) ✅
 
 **Goal:** evaluate each finished day once and move the user's hero: XP, streak, hearts and level. Replaces the original "Habit engine (3 rules)" (streak broken, no commits for N days, lazy messages); hearts cover the first two, and lazy messages become a Journal tip later. Full rules: [`docs/v2-hero-plan.md`](docs/v2-hero-plan.md) §2. Steps B4–B6.
 
@@ -759,4 +759,15 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - Finding (no bug): `GET /hero` is 404 until the insights exist too, not just the hero (`HeroQueryService` needs the scores for the class block). The first sync writes both, so the contract holds.
 - Lessons: the IT builds MockMvc from the shared context (`springSecurity()`), because `@AutoConfigureMockMvc` would make a second context with its own containers. Mutation-check a shape test: a removed enum value only fails if the data has it (on a Monday the week strip has no past days).
 - Local Docker: this agent's shell lacked the `docker` group (added after the session started); `newgrp docker` works around it.
+
+### 2026-10-19: U6, I3 merged; I4 wiring (🤖 integration)
+- **Merged:** U6 (#28, the Arena "under construction" screen), I3 (#29) and B6 (#30, `PUT /hero/class`: Phase 11 is done).
+- **I4** (`int/i4-wiring`):
+  - `web/next.config.ts`: a rewrite `/api/:path*` → `${BACKEND_URL}/api/:path*` (server-side, default `http://localhost:8080`), so no CORS. The login link still goes straight to the backend (the `oauth_state` cookie lives there).
+  - `experimental.proxyTimeout: 120_000`. **Finding:** Next 16's rewrite proxy times out after **30 s** by default and then answers a plain-text 500, while the backend keeps syncing and claims the 10-minute cooldown. A first-login sync (up to about 90 s) would have shown "road blocked", then a 429 on RETRY.
+  - `e2e/wiring/proxy-check.mjs` (in CI): a fake backend + `next dev`. Path, query, `Authorization`, the PUT body, a 429's `Retry-After` and problem+json all pass through, and a 35 s `/sync` returns 200. Mutation-checked: without `proxyTimeout` it fails with a 500 after exactly 30 s.
+  - Checked, no change needed: the callback strips a trailing slash from `FRONTEND_URL`; the `#token` hand-off uses `router.replace`, so the token leaves the address bar and history; per-IP rate limits are only on the direct `/auth/*` calls, so the proxy's single IP doesn't matter.
+  - Contract: the wiring conventions, B6's order of checks (409 wins over the cooldown), its `detail` texts and the race no-op, and the browser-zone rule (only while the stored zone is the default `UTC`; a REQUEST to the UI).
+  - [`docs/run-locally.md`](docs/run-locally.md): mock mode, and the full stack with its warnings (live Neon, Groq, the hourly hero job).
+- Open for the developer: `.claude/agents/backend-engineer.md` lets the backend append "as built" notes under its phase in `PROGRESS.md`, while `WORKFLOW.md` puts `PROGRESS.md` in the integration lane. Pick one.
 
