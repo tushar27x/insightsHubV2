@@ -409,7 +409,7 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 **Done when**
 - [x] `HeroRules` covers every rule, edge case (heart cap, faint at level 1, rest days, month and timezone boundaries) and idempotency (B4: `HeroRulesTest`, `DueDaysTest`, `RestDaysTest`)
 - [x] Running the hero job twice creates no duplicate events, and a 3-day outage is caught up in order (B5: `HeroServiceTest`, `it/HeroRepositoryIT`)
-- [ ] Class switch: unqualified → 409, during the cooldown → 429, success keeps the level
+- [x] Class switch: unqualified → 409, during the cooldown → 429, success keeps the level (B6: `ClassSwitchTest`, `HeroClassServiceTest`, `HeroApiTest`, `it/HeroClassIT`)
 
 **As built** (B4 #22)
 - `hero/HeroRules`: pure static functions, no clock or Spring. `evaluateDay(state, day)` settles one day (a day already settled is a no-op, a skipped day is refused), `evaluateDays` catches up in order, `dueDays(lastEvaluatedOn, now, zone)` lists the days ready to settle (a day is due at 06:00 local the next morning, `GRACE` = 6 h), `seed(activeDates, lastDay)` builds the first-login hero. Records `HeroState`, `HeroDay`, `HeroEvent`, enum `HeroEventType`; `RestDays` converts the weekday bitmask.
@@ -438,6 +438,13 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 - Known limitation: the week strip shows days before sign-up as `missed` (no "none" status), so only a new user's first week.
 - Follow-up idea: the refresh reuses `user-insights.graphql` with a short window; a calendar-only query would be cheaper.
 - B6 contract agreed before it started (2026-10-19): see `PUT /hero/class` in `docs/api/contract.md`.
+
+**As built** (B6)
+- `PUT /api/user/hero/class` in `HeroController`, rate limit `hero-class` (10/min per user). Body `{archetype: CLASS|null}`; a missing key is `null` (follow the top score). 200 = the full updated hero, 409 not qualified, 429 + `Retry-After` in the cooldown, 404 before the first sync, Spring's own 400 for an unknown class.
+- `hero/ClassSwitch.decide(...)`: pure, tests first. Order: the stored choice again → `Unchanged` (200, no event, cooldown not reset, even during the cooldown); not qualified → 409, checked **before** the cooldown, because waiting wouldn't help; cooldown → 429; else `Change`. Qualification reuses `HeroView.classView` (≥ `qualify-score` or the top class); `null` always qualifies. Pinning the class already followed (`null → scored`) is a change: `from == to`, and the cooldown starts.
+- `CLASS_CHANGED` details `{from, to, chosen}` (`from`/`to` = `current` before and after, `chosen` = the stored value, may be `null`), `on_date` = the user's local today. `HeroEvent` now allows `null` detail values (it used `Map.copyOf`).
+- Write: `HeroWriter.changeClass`, one transaction: `UsersRepository.changeClass` (JPQL compare-and-set on `archetype_changed_at`; `IS NULL` for a first change) + the event insert. A request that loses the race re-reads the user: if the winner stored the same class it's a 200 no-op, otherwise 429 with `Retry-After` from the winner's fresh `archetype_changed_at`.
+- `HeroClassService` (`user/`) reads outside the transaction (open-in-view is off), then returns `HeroQueryService.hero`.
 
 ---
 
