@@ -61,20 +61,20 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | 8 | Rate limiting | 🤖 | ✅ | [#8](https://github.com/tushar27x/insightsHubV2/pull/8) |
 | 9 | Errors, validation, logging | 🤖 backend (B2) | ✅ | [#12](https://github.com/tushar27x/insightsHubV2/pull/12) |
 | | **Part B: New v2 features** | | | |
-| 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | ✅ (first live run pending) | [#10](https://github.com/tushar27x/insightsHubV2/pull/10) [#20](https://github.com/tushar27x/insightsHubV2/pull/20) |
+| 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | ✅ (activity-only since #32; first live run pending) | [#10](https://github.com/tushar27x/insightsHubV2/pull/10) [#20](https://github.com/tushar27x/insightsHubV2/pull/20) [#32](https://github.com/tushar27x/insightsHubV2/pull/32) |
 | 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | ✅ | [#22](https://github.com/tushar27x/insightsHubV2/pull/22) [#25](https://github.com/tushar27x/insightsHubV2/pull/25) [#30](https://github.com/tushar27x/insightsHubV2/pull/30) |
 | 12 | Notifications: daily digest email (from `hero_events`) | 🤖 backend (B7) | ⬜ | |
 | 13 | Arena: leaderboards by hero level within the chosen class | 🤖 backend (B8) | ⬜ | |
 | | **Part C: Ship it** | | | |
-| 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | 🟨 I2, I3 | [#15](https://github.com/tushar27x/insightsHubV2/pull/15) |
+| 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | 🟨 I2, I3 | [#15](https://github.com/tushar27x/insightsHubV2/pull/15) [#29](https://github.com/tushar27x/insightsHubV2/pull/29) |
 | | **Part D: Hero-pet plan** | | | |
 | D0 | Docs: kit committed, `PROGRESS.md` + `AGENTS.md` updated | 🤖 integration (I0) | ✅ | [#9](https://github.com/tushar27x/insightsHubV2/pull/9) |
-| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U6 (Arena shell; the board after B8) | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) [#18](https://github.com/tushar27x/insightsHubV2/pull/18) [#23](https://github.com/tushar27x/insightsHubV2/pull/23) |
-| D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | 🟨 I1, sprites, hero-events | [#13](https://github.com/tushar27x/insightsHubV2/pull/13) [#19](https://github.com/tushar27x/insightsHubV2/pull/19) |
+| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U6 + first feedback (Arena shell; the board after B8) | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) [#18](https://github.com/tushar27x/insightsHubV2/pull/18) [#23](https://github.com/tushar27x/insightsHubV2/pull/23) [#27](https://github.com/tushar27x/insightsHubV2/pull/27) [#28](https://github.com/tushar27x/insightsHubV2/pull/28) `0ef3d35` |
+| D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | 🟨 I1, I4, sprites, hero-events, B5/B6 contract | [#13](https://github.com/tushar27x/insightsHubV2/pull/13) [#19](https://github.com/tushar27x/insightsHubV2/pull/19) [#24](https://github.com/tushar27x/insightsHubV2/pull/24) [#26](https://github.com/tushar27x/insightsHubV2/pull/26) [#31](https://github.com/tushar27x/insightsHubV2/pull/31) |
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 backend B7 (Phase 12 digest) · 🤖 ui: the browser-zone REQUEST, the B6 mock follow-ups, then the Arena board after B8 · 🤖 integration I5 (Playwright e2e). Run it locally: [`docs/run-locally.md`](docs/run-locally.md).
+**Next up** (each waits for the developer's go): 🤖 backend B7 (Phase 12 digest) · 🤖 ui: the browser zone after login and the B6 mock follow-ups (HANDOFF REQUEST), then the Arena board after B8 · 🤖 integration I5 (Playwright e2e). Run it locally: [`docs/run-locally.md`](docs/run-locally.md).
 
 ---
 
@@ -374,12 +374,19 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 
 **As built** (B1 #10, B36 fix #16/#17, B3 #20)
 - `sync/ScheduledSync`: `@Scheduled(cron = "${insightshub.sync.cron}", zone = "UTC")`, default `0 0 3 * * *` (`"-"` turns it off, as the ITs do). Users with a token and no `needs_reauth` (`UsersRepository.findIdsForScheduledSync`), one virtual thread each, at most `insightshub.sync.concurrency` (4) at once via a `Semaphore`. Each user is isolated: failures are logged and counted, and a summary (synced / skipped / needs re-auth / failed) is logged per run. Two instances would both run it; the cooldown claim makes the second sync of a user a no-op (ShedLock is still the stretch answer to hint 8).
-- `SyncService.scheduledSync` claims the per-user cooldown like login and refresh, so a user who refreshed in the last 10 minutes is skipped. It doesn't use the `sync-global` cap.
+- ~~`SyncService.scheduledSync` claims the per-user cooldown like login and refresh, so a user who refreshed in the last 10 minutes is skipped.~~ Replaced on 2026-10-19 (#32), see below.
 - **Branch scan** (`sync/BranchScanner`, `graphql/branch-activity.graphql`, `GitHubGraphQlClient.countBranchCommits`): for the last `branch-scan-days` (2: today and yesterday) that the calendar shows as 0, one call per day counts the user's commits on the 25 newest branches of their 20 most recently pushed repos (`author: {id}` = the GraphQL node id, now in `GitHubUser.id`). `upsertBranchCounts` writes `branch_commit_count` with `GREATEST`, so a count never goes down (commits stay counted after a squash merge deletes the branch) and `calendar_count` is left alone.
 - **Answer: `history(since, until)` filters on the committer date**, not the author date. Verified live (`BranchActivityLiveTest`): a spring-boot commit authored 2026-04-30 and committed 2026-10-14 is found only around 14 Oct. So a rebase moves commits to the rebase day: rebasing your own old commits makes today active. The author filter still means only the user's own commits count.
 - **Answer: calendar days are GitHub's own buckets, not UTC.** A commit counts on the day of its own timestamp's timezone (usually the user's); PRs and issues opened on the web count in the browser's timezone. So the calendar's dates are stored as the user's local dates, unconverted. The branch scan uses explicit local-midnight windows (`sync/DayWindow`, DST days 23 or 25 h), in UTC until B4 adds `users.timezone`.
 - Cost: the scan is 1 GraphQL point per call, and runs only for empty days.
 - Hint 9 (`UserSyncedEvent`) isn't built: B4/B5 decide how the hero engine hears about a sync.
+
+**As built** (activity-only daily sync, #32, 2026-10-19, the developer's decision)
+- The daily job makes **no LLM calls**. `ScheduledSync` calls `SyncService.refreshActivity(id, from)` (the same refresh the hourly hero job uses) with `from` = today (UTC) − `ActivityWriter.OVERLAP_DAYS` (7); `refreshActivity` adds a day of slack for zones and caps at a year. It writes the contribution calendar and the branch scan, nothing else.
+- It no longer claims the 10-minute cooldown, so a refresh right after 03:00 isn't blocked; its writes are idempotent upserts (`GREATEST` for branch counts). `SyncService.scheduledSync` is gone; the run summary is `{synced, needsReauth, failed}`. `needs_reauth` is still flagged when GitHub rejects a token.
+- AI texts and insights stats (Journal) are regenerated only by a sync the user starts (login, SAVE). Hero seeding stays on that full sync; every scheduled user has synced fully once.
+- Why: each full sync is 5 LLM calls on the shared Groq key (4 × `gpt-oss-120b`, 1 × `gpt-oss-20b`; up to 10 with retries), so the daily job cost 5 calls per user per day for texts that barely change. Now the baseline is 0; LLM calls happen only on login and SAVE (10-min cooldown, `sync-global` 30 syncs/min), plus B7's planned digest intro.
+- Tests: `ScheduledSyncTest` runs a real `SyncService` and checks the daily run never touches the AI, the engine, `InsightsWriter`, hero seeding or `claimSync`, and never makes the year-long fetch.
 
 ---
 
@@ -770,4 +777,24 @@ One entry per session: what was built, what was learned, open questions. Bug det
   - Contract: the wiring conventions, B6's order of checks (409 wins over the cooldown), its `detail` texts and the race no-op, and the browser-zone rule (only while the stored zone is the default `UTC`; a REQUEST to the UI).
   - [`docs/run-locally.md`](docs/run-locally.md): mock mode, and the full stack with its warnings (live Neon, Groq, the hourly hero job).
 - Open for the developer: `.claude/agents/backend-engineer.md` lets the backend append "as built" notes under its phase in `PROGRESS.md`, while `WORKFLOW.md` puts `PROGRESS.md` in the integration lane. Pick one.
+
+### 2026-10-19: End of session
+- **Merged today:** #24 (B4 contract), #25 (B5: hourly hero job, `/hero`, `/hero/events`, `/preferences`, `#token` redirect), #26 (B5 readings + B6 contract), #27 (U5 Change class + Settings), #28 (U6 Arena shell), #29 (I3 contract tests), #30 (B6 class change: **Phase 11 done**), #31 (I4 wiring). Committed straight to `main`: `0ef3d35` (developer feedback, below). Open: #32 (activity-only daily sync, ready) and this docs PR (merge after #32).
+- **Steps:** backend B1–B6 · ui U1–U6 · integration I0–I4, so 17 of 21. Left: B7 (digest), B8 (Arena), the real Arena board (after B8), I5 (e2e), I6 (responsive/a11y + release checklist), and deployment (host not chosen).
+- **First full-stack run by the developer** (from `main`, live Neon/Redis/GitHub/Groq, via `docs/run-locally.md`). Feedback, built by the UI agent live in the main checkout and committed to `main` after approval, without a PR: pixel icons in the tab bar (`web/lib/tab-icons.ts`; the mockups only had squares), and an "i" button per class row on the Hero sheet showing what earns each class (weights and ranges from `ScoringArchetypeClassifier`, algo v1, in `web/lib/classes.ts` `CLASS_SCORING`).
+- **Decisions by the developer today:**
+  - The hero job skips `needs_reauth` users (the hero waits, then catches up).
+  - The daily sync is activity-only, no LLM calls (#32).
+  - Approved UI feedback may be edited live in the main checkout and committed straight to `main` (no branch or PR), as done for `0ef3d35`.
+- **Questions the developer asked, answered from the code** (for the record):
+  - XP: +10 per active day (any calendar contribution or a branch commit; volume doesn't matter), level n → n+1 needs 50 × n, XP restarts at 0 in each level; first login seeds 10 XP per active day of the last 90.
+  - LLM calls: 5 per full sync (year/weekly/craft reviews and the character sheet on `openai/gpt-oss-120b`, one batched repo-summaries call on `openai/gpt-oss-20b`, all on **Groq**; up to 10 with retries). The provider chain is Groq, then Gemini, which is dormant without `GEMINI_API_KEY`. Every task has a static fallback.
+- **Open for the developer:**
+  - Pick one rule for `PROGRESS.md` "as built" notes: the backend appends under its phase (`.claude/agents/backend-engineer.md`) or sends a REQUEST (`WORKFLOW.md`). And whether `WORKFLOW.md` should record the feedback-to-`main` way of working.
+  - B4's three filled rule gaps (Phase 11 "As built", ⏳).
+  - Groq plan limits, to replace the `sync-global: 30/min` placeholder.
+  - Deployment host; the first live run of the daily refresh and the hourly hero job.
+  - Older items from 2026-10-14 (archetype calibration, v1 B26/B30, GitGuardian).
+- **Tooling:** the agents' shells lacked the `docker` group (added after they started); `echo './mvnw verify' | newgrp docker` works, and a fresh login shell fixes it.
+- **Next session:** go-aheads for UI's REQUEST (the browser zone, real class change), B7, and I5. Integration may also move the tab icons into `docs/design/sprites.json`.
 
