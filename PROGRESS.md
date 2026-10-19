@@ -62,7 +62,7 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | 9 | Errors, validation, logging | 🤖 backend (B2) | ✅ | [#12](https://github.com/tushar27x/insightsHubV2/pull/12) |
 | | **Part B: New v2 features** | | | |
 | 10 | Scheduled daily sync, activity history & branch scan | 🤖 backend (B1, B3) | ✅ (first live run pending) | [#10](https://github.com/tushar27x/insightsHubV2/pull/10) [#20](https://github.com/tushar27x/insightsHubV2/pull/20) |
-| 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | 🟨 B4 | [#22](https://github.com/tushar27x/insightsHubV2/pull/22) |
+| 11 | Hero engine (lives, XP, levels) | 🤖 backend (B4–B6) | 🟨 B4, B5 | [#22](https://github.com/tushar27x/insightsHubV2/pull/22) [#25](https://github.com/tushar27x/insightsHubV2/pull/25) |
 | 12 | Notifications: daily digest email (from `hero_events`) | 🤖 backend (B7) | ⬜ | |
 | 13 | Arena: leaderboards by hero level within the chosen class | 🤖 backend (B8) | ⬜ | |
 | | **Part C: Ship it** | | | |
@@ -74,7 +74,7 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 backend B5 (hourly hero job, `GET /hero`, `/hero/events`, `/preferences`, the `#token` redirect) · 🤖 ui U5 · 🤖 integration I3 (contract tests) and I4 (wiring), both after B5.
+**Next up:** 🤖 backend B6 (`PUT /hero/class`) · 🤖 ui U5 (Change class + Settings) · 🤖 integration I3 (contract tests), then I4 (wiring). All three may start since B5 merged.
 
 ---
 
@@ -408,7 +408,7 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 
 **Done when**
 - [x] `HeroRules` covers every rule, edge case (heart cap, faint at level 1, rest days, month and timezone boundaries) and idempotency (B4: `HeroRulesTest`, `DueDaysTest`, `RestDaysTest`)
-- [ ] Running the hero job twice creates no duplicate events, and a 3-day outage is caught up in order
+- [x] Running the hero job twice creates no duplicate events, and a 3-day outage is caught up in order (B5: `HeroServiceTest`, `it/HeroRepositoryIT`)
 - [ ] Class switch: unqualified → 409, during the cooldown → 429, success keeps the level
 
 **As built** (B4 #22)
@@ -422,6 +422,22 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
   - The seed's streak is the run of active days ending yesterday (the plan only seeds XP).
   - "XP back to the start of that level" = XP 0 in the new level; a faint at level 1 also resets XP to 0 and refills the hearts.
 - Event `details` and the `xp_days` rows are in `docs/api/contract.md` (`GET /hero/events`).
+
+**As built** (B5 #25)
+- `hero/HeroJob`: `@Scheduled(cron = "${insightshub.hero.cron}", zone = "UTC")`, default `0 5 * * * *` (5 past every hour). `HeroService.dueHeroes()` pre-filters in SQL (`last_evaluated_on` before the latest day due anywhere, i.e. UTC+18), then `HeroRules.dueDays` per user's zone.
+- Per due user, on a virtual thread (at most `insightshub.hero.concurrency` = 4 at once, each user isolated, a run summary logged):
+  1. `SyncService.refreshActivity(userId, firstDue)`: the contribution calendar from the day before the first due day, plus the branch scan in the user's zone. No AI, no cooldown. Settles only if the refresh worked (**B37**: the daily sync runs on a UTC clock, the evaluation on local clocks, so without it evening activity was missed).
+  2. `HeroService.evaluate` settles every due day in one transaction (`HeroWriter.apply`): a compare-and-set on `hero_state.last_evaluated_on`, then `INSERT … ON CONFLICT DO NOTHING` for `hero_events` and `hero_days`. Re-runs, retries and a second instance write nothing twice.
+- GitHub down: the days wait for the next hourly run and are caught up in order.
+- **`needs_reauth` (✅ confirmed by the developer, 2026-10-19):** a user whose token GitHub rejects is **not** evaluated. The hero waits instead of losing a heart a day for activity we can't see, and catches up in order with real data after the next login.
+- The hero is created at the end of every successful sync (`HeroService.seedIfMissing`, after the insights are saved), so `GET /hero` is 404 exactly until the first sync. A failed seed is logged and retried by the next sync.
+- Days on or before the sign-up day (local) can't cost a heart; "before" can happen when a zone change moves the local dates back. Rest days use `RestDays.maskOn` per settled day. `PUT /preferences` stores today's mask as `rest_days_previous` and applies the new one from tomorrow, in the new zone.
+- The sync's branch scan now uses `users.timezone` (UTC until B5).
+- `insightshub.auth.redirect-to-frontend` is now `true`: the callback 302s to `${FRONTEND_URL}/dashboard#token=<jwt>` (`false` still returns JSON).
+- API readings (approved by integration, in `docs/api/contract.md`): mood priority `FAINTED` > `LEVEL_UP` > `SLEEPING` > `HUNGRY` > base, `FAINTED` also after a `LEVEL_DOWN`; `SLEEPING` only on a rest day with no activity yet; the `/hero/events` window; `PUT /preferences` takes the full object; per-user rate limits `hero` (60/min) and `preferences` (20/min).
+- Known limitation: the week strip shows days before sign-up as `missed` (no "none" status), so only a new user's first week.
+- Follow-up idea: the refresh reuses `user-insights.graphql` with a short window; a calendar-only query would be cheaper.
+- B6 contract agreed before it started (2026-10-19): see `PUT /hero/class` in `docs/api/contract.md`.
 
 ---
 
@@ -719,3 +735,10 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - **U4** (#23, ui): the Journal and the Hero sheet. Home's RECENTLY log skips 0-XP days; their `RESTED` / `LIFE_LOST` events tell them.
 - **Contract (integration):** `xp_days` lists every settled day (0 XP on missed and rest days), and the event `details` are defined. `hero-events.json` is now a 30-day story replayed with B4's rules that ends exactly in `hero.json`'s state, with a fixture test for that. The old fixture had Monday and Tuesday at streak 1 and 2, which the rules can't produce with `hero.json`'s 2 hearts (the streak carries over the Sunday rest day), so mock-mode Home now shows "Streak 12 / Streak 11" where the boards show 2 / 1.
 - **IT user ids:** each IT class owns a block of 100 GitHub ids (`IntegrationTest` javadoc). B4's first id collided with `UsersRepositoryIT`'s `USER + 1`.
+
+### 2026-10-19: B5, B6 contract (🤖 all lanes)
+- **B5** (#25, backend): the hourly hero job, `GET /hero`, `GET /hero/events`, `GET/PUT /preferences` and the `#token` fragment redirect; see Phase 11 "As built". 393 unit tests, 15 ITs. **B37** found and fixed before it shipped (stale activity at settle time).
+- **Developer decision:** the hero job skips `needs_reauth` users (the hero waits, then catches up).
+- **Integration** (`int/b5-contract`): the B5 readings and the B6 contract in `contract.md`, typed event `details` in `web/lib/api/types.ts`, `it/HeroRepositoryIT` (the job's writes on a real Postgres, block 9_000_3xx).
+- Lesson: a strict replay test on the backend (`HeroQueryServiceTest` turns the fixture story into rows and expects the exact JSON) means a fixture event can't be added without the backend's test data following it. `CLASS_CHANGED` therefore isn't in `hero-events.json` until B6 adds it on both sides.
+- Go-aheads given: B6 (backend), U5 (ui, continuing from uncommitted work), this PR then I3 (integration).
