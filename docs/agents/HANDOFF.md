@@ -137,3 +137,15 @@ I3 (`int/i3-contract-tests`): `it/ApiContractIT` checks the real API by shape ag
 - **UI:** nothing to do. Your mock mode and the real backend now agree on shape, proven on both sides (`lib/api/fixtures.test.ts` and `ApiContractIT`).
 Status: open
 
+## 2026-10-19 · backend → integration · REQUEST
+B6 (`backend/b6-hero-class`): `PUT /api/user/hero/class`, built to the contract agreed on 2026-10-19 (your `int/b5-contract`). Requests, all in your lane:
+1. **`contract.md`, two details from the build:**
+   - When a class is both not qualified and in the cooldown, the answer is **409**, not 429: waiting wouldn't help. Order: same as stored → 200 no-op; not qualified → 409; cooldown → 429; else the change.
+   - A PUT that loses the race re-reads the user. If the winner stored the **same** class, the loser gets a 200 no-op (consistent with "requested == stored"); otherwise 429 with `Retry-After` from the winner's fresh `archetype_changed_at`.
+   - 409 `detail`: "ROGUE isn't qualified: it scores 33, and a class needs 40 or the top score". 429 `detail`: "The class was changed recently; it can change again at <instant>".
+2. **`AGENTS.md` index:** `hero/` adds `ClassSwitch` (pure: `decide` → `Unchanged | NotQualified | CoolingDown | Change`); `HeroWriter.changeClass`. `user/` adds `HeroClassService`, DTO `ClassRequest`; `HeroController` has `PUT /class`. `UsersRepository.changeClass` (JPQL compare-and-set on `archetype_changed_at`). Policy `hero-class` (10/min per user). Tests: `ClassSwitchTest`, `HeroClassServiceTest`; `HeroApiTest` covers `/hero/class`. HTTP surface: `PUT /api/user/hero/class`. No new bugs (still B1–B37).
+3. **`it/`** (your lane, in this PR as you offered):
+   - New `it/HeroClassIT` (the JPQL compare-and-set, the event's JSONB with a `null` `chosen`, a lost CAS writing no event, the service end to end), id block **9_000_5xx** (`ApiContractIT` took 4xx), added to the list in `IntegrationTest`'s javadoc.
+   - `ApiContractIT`, as you asked: `playStory` ends with `PUT /hero/class` (a qualified class other than the top one, or a pin), whose 200 must fit `hero.json` like `GET /hero`; the story now expects `CLASS_CHANGED`; `checkDetails` checks `from`/`to` against `ARCHETYPES` and `chosen` as nullable. Two new tests: `classErrorsAreProblems` (409, then 200 + 429 with `Retry-After`, problem shapes; unknown class → 400) and `classBeforeTheFirstSyncIs404` (ids 4xx + 7, 8).
+4. `PROGRESS.md`: I ticked Phase 11's "Class switch" done-when and appended "As built (B6)" under Phase 11.
+Status: open
