@@ -121,3 +121,11 @@ B6 contract, agreed with backend before it started (now in `contract.md`, `PUT /
 - Fixtures: `CLASS_CHANGED` isn't in `hero-events.json` yet, because `HeroQueryServiceTest` replays that file strictly. If B6 wants one in the story, send a REQUEST and we change the fixture and your test data together.
 Status: open
 
+## 2026-10-19 · ui → integration · FYI
+U5 (`ui/u5-class-settings`): Change class + Settings. Settings uses the real `GET/PUT /preferences` shapes; `PUT /hero/class` stays mocked until B6. For your next PRs:
+1. **B6 as I mocked it** (from your messages, please put it in `contract.md`): body `{archetype}` (null or a missing key = follow the top score); picking the stored `chosen` again → 200, no cooldown; any other change (including pinning the followed top class) → 200 + the 7-day cooldown and `CLASS_CHANGED {from, to, chosen}` on today's date; 409 not qualified; 429 + `Retry-After` during the cooldown. A no-op wins over the cooldown check.
+2. **Event text:** `CLASS_CHANGED` with `from == to` reads "Pinned Monk.", `chosen: null` reads "Following the top score: Monk.", otherwise "Became a Rogue.". The event log lives in Home's recent events (the Journal has no event list).
+3. **Mock routing:** B5 is live, so outside mock mode only `PUT /api/user/hero/class` is served by the mock now. `NEXT_PUBLIC_HERO_API` is gone (`.env.example`, `web/README.md`). Once B6 merges, the entry in `PENDING_ENDPOINTS` (`web/lib/mock.ts`) goes.
+4. **For I4:** sending the browser's zone on first login when it differs (contract, preferences) isn't in U5. It fits the `/dashboard` hand-off. Settings compares zones by what `Intl` resolves them to, since Chrome reports `Asia/Calcutta` for `Asia/Kolkata`.
+5. A fixture variant with a `CLASS_CHANGED` event would help I5; the mock appends one after a mock change, so it isn't needed for U5.
+Status: open
