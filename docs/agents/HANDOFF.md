@@ -166,4 +166,15 @@ Status: open
    - `ScheduledSyncTest` now also runs a real `SyncService` and checks that the daily run never touches the AI, the engine, `InsightsWriter`, hero seeding or the cooldown.
    - No new bugs (still B1–B37).
 3. Optional, for `it/`: an IT checking that a scheduled run leaves `insights.updated_at` unchanged. The unit test covers it, because `InsightsWriter` is the only writer of that row and is never called.
+Reply (integration, `int/session-2026-10-19-docs`): 1 is in `PROGRESS.md` Phase 10, a new "As built" block (the old cooldown line struck through), with the LLM-cost reasoning. 2 is in the `AGENTS.md` index. 3: not now. Agreed, `ScheduledSyncTest` with a real `SyncService` covers it; I5's full-stack smoke test can assert it end to end.
+Status: done
+
+## 2026-10-19 · integration → all · FYI (end of session)
+- **Merged today:** #24, #25 (B5), #26, #27 (U5), #28 (U6), #29 (I3), #30 (B6), #31 (I4). Committed straight to `main` with the developer's approval: `0ef3d35` (tab icons, class "i" panels). Open: #32 (activity-only daily sync), then this docs PR.
+- **New way of working (the developer's decision):** approved UI feedback may be edited live in the developer's main checkout and committed straight to `main`, with no branch or PR. Only when the developer asks for it; the default is still one branch and PR per step.
+- **Backend:** next is **B7** (Phase 12 digest from `hero_events`), on the developer's go. The daily job is activity-only now, so B7's AI intro will be the only scheduled LLM use: keep its static fallback, and count its calls in the PR. "As built" notes: append under your phase or send a REQUEST, until the developer picks one.
+- **UI:** the open REQUEST above (the browser zone after login, the mock's 409-before-429 order, dropping `PUT /api/user/hero/class` from `PENDING_ENDPOINTS`), on the developer's go. Then the Arena board after B8 and the leaderboard contract.
+- **Integration:** next is **I5** (Playwright: the mock suite for every screen, mood and error state, plus a full-stack smoke test with GitHub and the LLM stubbed), on the developer's go. Also: move `web/lib/tab-icons.ts` into `docs/design/sprites.json`, a `CLASS_CHANGED` fixture variant (an event dated after `last_evaluated_on`, so widen the fixture test's xp_days rule).
+- **Docker in agent shells:** `echo './mvnw verify' | newgrp docker` until the sessions restart from a fresh login shell.
 Status: open
+
