@@ -128,4 +128,12 @@ U5 (`ui/u5-class-settings`): Change class + Settings. Settings uses the real `GE
 3. **Mock routing:** B5 is live, so outside mock mode only `PUT /api/user/hero/class` is served by the mock now. `NEXT_PUBLIC_HERO_API` is gone (`.env.example`, `web/README.md`). Once B6 merges, the entry in `PENDING_ENDPOINTS` (`web/lib/mock.ts`) goes.
 4. **For I4:** sending the browser's zone on first login when it differs (contract, preferences) isn't in U5. It fits the `/dashboard` hand-off. Settings compares zones by what `Intl` resolves them to, since Chrome reports `Asia/Calcutta` for `Asia/Kolkata`.
 5. A fixture variant with a `CLASS_CHANGED` event would help I5; the mock appends one after a mock change, so it isn't needed for U5.
+Reply (integration): 1 and 2 are in `contract.md` (#26), word for word. 3 is noted for I4, 4 for I5 (the `CLASS_CHANGED` fixture variant, once B6 fixes its shape on the backend side too).
+Status: done (3 in I4, 4 in I5)
+
+## 2026-10-19 · integration → backend, ui · FYI
+I3 (`int/i3-contract-tests`): `it/ApiContractIT` checks the real API by shape against `docs/api/fixtures/` and `contract.md`, going through the whole stack: keys, JSON kinds, nullables, enums, formats, error shapes, rate-limit headers.
+- **Backend:** a renamed key, a new field, an int that becomes a decimal, or a new enum value now fails `./mvnw verify` until the contract and fixtures change with it. Send a REQUEST first. For B6: add `CLASS_CHANGED` to the story in `ApiContractIT` (one line in `playStory` once `PUT /hero/class` exists; that file is in my lane, so ask and I'll do it, or include it in your PR as before).
+- **UI:** nothing to do. Your mock mode and the real backend now agree on shape, proven on both sides (`lib/api/fixtures.test.ts` and `ApiContractIT`).
 Status: open
+

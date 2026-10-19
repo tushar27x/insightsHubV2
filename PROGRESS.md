@@ -66,15 +66,15 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | 12 | Notifications: daily digest email (from `hero_events`) | 🤖 backend (B7) | ⬜ | |
 | 13 | Arena: leaderboards by hero level within the chosen class | 🤖 backend (B8) | ⬜ | |
 | | **Part C: Ship it** | | | |
-| 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | 🟨 I2 | [#15](https://github.com/tushar27x/insightsHubV2/pull/15) |
+| 14 | Testing, API docs & deployment | 🤖 integration (I2, I3, I5, I6); deploy TBD | 🟨 I2, I3 | [#15](https://github.com/tushar27x/insightsHubV2/pull/15) |
 | | **Part D: Hero-pet plan** | | | |
 | D0 | Docs: kit committed, `PROGRESS.md` + `AGENTS.md` updated | 🤖 integration (I0) | ✅ | [#9](https://github.com/tushar27x/insightsHubV2/pull/9) |
-| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U4 | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) [#18](https://github.com/tushar27x/insightsHubV2/pull/18) [#23](https://github.com/tushar27x/insightsHubV2/pull/23) |
+| D1 | Web UI in `web/` (scaffold, title, Home, Journal, Hero, Settings, Arena shell) | 🤖 ui (U1–U6) | 🟨 U1–U5 | [#11](https://github.com/tushar27x/insightsHubV2/pull/11) [#14](https://github.com/tushar27x/insightsHubV2/pull/14) [#18](https://github.com/tushar27x/insightsHubV2/pull/18) [#23](https://github.com/tushar27x/insightsHubV2/pull/23) |
 | D2 | Contract, shared types, wiring, e2e | 🤖 integration (I1, I4, I5) | 🟨 I1, sprites, hero-events | [#13](https://github.com/tushar27x/insightsHubV2/pull/13) [#19](https://github.com/tushar27x/insightsHubV2/pull/19) |
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up:** 🤖 backend B6 (`PUT /hero/class`) · 🤖 ui U5 (Change class + Settings) · 🤖 integration I3 (contract tests), then I4 (wiring). All three may start since B5 merged.
+**Next up:** 🤖 backend B6 (`PUT /hero/class`, in progress) · 🤖 ui U6 (Arena shell, in review) · 🤖 integration I4 (wiring) after I3.
 
 ---
 
@@ -504,6 +504,7 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 
 **Done when**
 - [x] `./mvnw verify` is green with integration tests (I2: Testcontainers Postgres + Redis, CI on every PR; `DailyContributionsRepositoryIT` disabled until B36)
+- [x] Backend contract tests (I3): `it/ApiContractIT` checks the real `/insights`, `/hero`, `/hero/events` and `/preferences` responses and their errors against `docs/api/fixtures/` and `contract.md`
 - [ ] Swagger UI documents every endpoint
 - [ ] The app runs in production, and the daily sync + digest fire there
 
@@ -742,3 +743,13 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - **Integration** (`int/b5-contract`): the B5 readings and the B6 contract in `contract.md`, typed event `details` in `web/lib/api/types.ts`, `it/HeroRepositoryIT` (the job's writes on a real Postgres, block 9_000_3xx).
 - Lesson: a strict replay test on the backend (`HeroQueryServiceTest` turns the fixture story into rows and expects the exact JSON) means a fixture event can't be added without the backend's test data following it. `CLASS_CHANGED` therefore isn't in `hero-events.json` until B6 adds it on both sides.
 - Go-aheads given: B6 (backend), U5 (ui, continuing from uncommitted work), this PR then I3 (integration).
+
+### 2026-10-19: U5 merged, I3 contract tests (🤖 integration)
+- **U5** (#27, ui) merged after integration rebased it over #26 (only `HANDOFF.md` conflicted, both entries kept in merge order).
+- **I3** (`int/i3-contract-tests`): `it/ApiContractIT` + `it/ContractShape`. The `@WebMvcTest` slices compare values strictly with mocked services. This IT goes through the whole stack (security chain, Redis rate limiter and cache, services, Postgres SQL and JSONB, Jackson) and checks each response against its fixture **by shape**: the same keys at every level, the same JSON kinds (integer vs decimal too), nullable only where the contract says `X|null`, plus the contract's enums and date/Instant formats. Also the error shapes: 404 before the first sync, 401 without a token, the validation 400s (`errors[]` with snake_case fields), and the `X-RateLimit-*` headers.
+- The hero runs a 14-day story on the real tables, built so the rules emit every event type B5 can produce (`LIFE_LOST`, `LIFE_GAINED`, `LEVEL_UP`, `RESTED`, `LEVEL_DOWN`, `FAINTED`), and each `details` is checked against the contract's table. `CLASS_CHANGED` joins when B6 lands.
+- `/insights` is seeded through the sync's real write path minus GitHub: the v1 parity user → `InsightsEngine` → the AI layer (static fallbacks) → `InsightsWriter`.
+- Finding (no bug): `GET /hero` is 404 until the insights exist too, not just the hero (`HeroQueryService` needs the scores for the class block). The first sync writes both, so the contract holds.
+- Lessons: the IT builds MockMvc from the shared context (`springSecurity()`), because `@AutoConfigureMockMvc` would make a second context with its own containers. Mutation-check a shape test: a removed enum value only fails if the data has it (on a Monday the week strip has no past days).
+- Local Docker: this agent's shell lacked the `docker` group (added after the session started); `newgrp docker` works around it.
+
