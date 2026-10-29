@@ -74,7 +74,7 @@ From Part D on, 🤖 names the lane: **backend**, **ui** or **integration** (ste
 | | **Stretch** | | | |
 | S | RAG chat, Discord alerts, friends leaderboard, observability | 🧑 | ⬜ | |
 
-**Next up** (each waits for the developer's go): review B7 (#35), the browser zone (#34) and I5 · 🤖 integration: the B7 contract (unsubscribe pages, `List-Unsubscribe` headers) · 🤖 backend B8 (Phase 13 Arena) · 🤖 ui: B38 (`?mock_error` under `next dev`), `web/README.md` (B39), then the Arena board after B8 · 🤖 integration I6. Run it locally: [`docs/run-locally.md`](docs/run-locally.md).
+**Next up** (each waits for the developer's go): review I5 (#36) · 🤖 integration: the B7 contract (unsubscribe pages, `List-Unsubscribe` headers) · 🤖 backend B8 (Phase 13 Arena) · 🤖 ui: B38 (`?mock_error` under `next dev`), `web/README.md` (B39), then the Arena board after B8 · 🤖 integration I6. Run it locally: [`docs/run-locally.md`](docs/run-locally.md).
 
 ---
 
@@ -812,7 +812,7 @@ One entry per session: what was built, what was learned, open questions. Bug det
 - **Next session:** go-aheads for UI's REQUEST (the browser zone, real class change), B7, and I5. Integration may also move the tab icons into `docs/design/sprites.json`.
 
 ### 2026-10-29: I5 Playwright e2e (🤖 integration)
-- **Go-aheads (developer):** B7, the UI's REQUEST (browser zone, mock order, class PUT to the backend) and I5. Open: #34 (ui, ready), #35 (B7, ready after its CI fix), the I5 PR.
+- **Go-aheads (developer):** B7, the UI's REQUEST (browser zone, mock order, class PUT to the backend) and I5. Merged: #34 (browser zone on login, mock 409 before 429, class PUT to the backend) and #35 (B7 digest). Open: the I5 PR (#36).
 - **I5** (`int/i5-e2e`), `e2e/` (its own `package.json`, Playwright 1.64, Chromium), in CI as the `E2E (Playwright)` job:
   - `mock` (25 tests): mock mode on its **production** build. Title → PRESS START, the five tabs (desktop nav and phone tab bar), Change class, a mock class change, SAVE's overlay, every `hero-variants.json` entry (all 7 moods and 4 tiers, asserted through Home's screen-reader summary and the tier label), the class cooldown, and `?mock_error=401|404|429` on the shell's GETs.
   - `stubbed` (22): the real build, `/api/*` answered by Playwright from `docs/api/fixtures/`. The `#token` hand-off (stored, gone from the URL and history, in no request URL, sent only as `Authorization`), reload, no session → title, an expired token. The browser zone (UTC replaced by one PUT with only `timezone` changed and the hero re-read after the PUT; a picked zone kept; a failed PUT ignored). SAVE: 429 + `Retry-After` (countdown, survives a reload), 409 reconnect, 502 + RETRY, network error, 401, 404. The shell's GETs: 404 → ROLL CHARACTER, a 502 that outlasts the automatic retry, 401. Change class: 200 (request body), 409, 429, 502. Settings: 200 (full object), 400 `errors[]`, 429.
@@ -820,5 +820,5 @@ One entry per session: what was built, what was learned, open questions. Bug det
   - `TestcontainersConfig`: `--e2e.frontend-url` / `--e2e.backend-url` move the two URLs for the e2e backend, and the Gemini fallback key is forced empty, so a `.env` with `GEMINI_API_KEY` can't make the ITs call Gemini.
 - **Findings:** B38 (`?mock_error` does nothing under `next dev`: StrictMode's double mount spends it on a cancelled fetch; the mock suite runs on a production build). B39 (`.git/info/exclude` hides new `prompts/` files and every `README.md`: #35's red CI, and `docs/design/README.md` + `web/README.md` were never committed; I5 adds the design README).
 - **Lessons:** Playwright doesn't route a redirect's target: the first run reached the real GitHub sign-in page. Intercept the request that issues the redirect and block the host as a safety net. A one-shot 5xx on a GET never shows: the query client retries it once (4xx never). The stubbed zone test asserts the hero is read after the PUT completes (a slow PUT), not just that two GETs happened.
-- **Merge order:** #34 before I5 (the stubbed zone tests need it), then rebase I5. #35 and I5 both touch `TestcontainersConfig` in different lines.
+- **Merge order:** I5's first CI run failed 7 tests (4 change-class, 3 zone) because #34 wasn't in `main` yet: `PUT /hero/class` was still served by the in-browser mock, and nothing sent the zone. Rebased on #34 + #35: all green.
 - **Open for the developer:** anchor or drop the two `.git/info/exclude` lines (B39).
