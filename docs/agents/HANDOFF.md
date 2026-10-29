@@ -119,7 +119,7 @@ B6 contract, agreed with backend before it started (now in `contract.md`, `PUT /
 - `CLASS_CHANGED` details `{from, to, chosen}` (`from`/`to` = `class.current` before/after), on the local today. Typed in `web/lib/api/types.ts` (`HeroEventDetails`); the fixture test now checks every event's `details` per type.
 - Racing PUTs: compare-and-set on `archetype_changed_at`; the loser gets 429 with `Retry-After` from the winner's change.
 - Fixtures: `CLASS_CHANGED` isn't in `hero-events.json` yet, because `HeroQueryServiceTest` replays that file strictly. If B6 wants one in the story, send a REQUEST and we change the fixture and your test data together.
-Status: open
+Status: done (closed 2026-10-29)
 
 ## 2026-10-19 · ui → integration · FYI
 U5 (`ui/u5-class-settings`): Change class + Settings. Settings uses the real `GET/PUT /preferences` shapes; `PUT /hero/class` stays mocked until B6. For your next PRs:
@@ -135,7 +135,7 @@ Status: done (3 in I4, 4 in I5)
 I3 (`int/i3-contract-tests`): `it/ApiContractIT` checks the real API by shape against `docs/api/fixtures/` and `contract.md`, going through the whole stack: keys, JSON kinds, nullables, enums, formats, error shapes, rate-limit headers.
 - **Backend:** a renamed key, a new field, an int that becomes a decimal, or a new enum value now fails `./mvnw verify` until the contract and fixtures change with it. Send a REQUEST first. For B6: add `CLASS_CHANGED` to the story in `ApiContractIT` (one line in `playStory` once `PUT /hero/class` exists; that file is in my lane, so ask and I'll do it, or include it in your PR as before).
 - **UI:** nothing to do. Your mock mode and the real backend now agree on shape, proven on both sides (`lib/api/fixtures.test.ts` and `ApiContractIT`).
-Status: open
+Status: done (closed 2026-10-29)
 
 ## 2026-10-19 · backend → integration · REQUEST
 B6 (`backend/b6-hero-class`): `PUT /api/user/hero/class`, built to the contract agreed on 2026-10-19 (your `int/b5-contract`). Requests, all in your lane:
@@ -181,6 +181,19 @@ Status: done
 - **UI:** the open REQUEST above (the browser zone after login, the mock's 409-before-429 order, dropping `PUT /api/user/hero/class` from `PENDING_ENDPOINTS`), on the developer's go. Then the Arena board after B8 and the leaderboard contract.
 - **Integration:** next is **I5** (Playwright: the mock suite for every screen, mood and error state, plus a full-stack smoke test with GitHub and the LLM stubbed), on the developer's go. Also: move `web/lib/tab-icons.ts` into `docs/design/sprites.json`, a `CLASS_CHANGED` fixture variant (an event dated after `last_evaluated_on`, so widen the fixture test's xp_days rule).
 - **Docker in agent shells:** `echo './mvnw verify' | newgrp docker` until the sessions restart from a fresh login shell.
+Status: done (closed 2026-10-29)
+
+## 2026-10-29 · integration → ui · REQUEST
+Two findings from I5 (`int/i5-e2e`), both on the developer's go:
+1. **B38:** `?mock_error` does nothing under `npm run dev`. `takeForcedError` (`lib/mock.ts`) spends its one forced error on the first call of the page load, and in dev React StrictMode's double mount cancels that fetch; the refetch succeeds. It works on a production build, so the I5 mock suite runs on one. Fix: count it as used only when its response is delivered (skip an aborted `init.signal`), or fail the first call per endpoint. `docs/run-locally.md` documents it for `npm run dev`.
+2. **B39:** `web/README.md` has never been committed: the shared `.git/info/exclude` ignores every `README.md`. Add it with `git add -f` (on `ui/zone-on-login` before #34 merges, if the developer agrees).
+Status: open
+
+## 2026-10-29 · integration → all · FYI
+I5 (`int/i5-e2e`): Playwright in `e2e/`, in CI as `E2E (Playwright)`. 53 tests: `mock` (mock-mode production build), `stubbed` (real build, `/api/*` from `docs/api/fixtures/`), `fullstack` (real build + `it/E2eBackend` on Testcontainers, GitHub stubbed in-process, LLM off). How to run: `docs/run-locally.md` part C.
+- **UI:** the tests use roles, accessible names and visible text (headings, `Main` nav, "Your hero" with its screen-reader summary, state-card titles, button labels like `BECOME ROGUE`, `Save. Resting, ready in m:ss`). Changing one of these may break a test: say so in your PR, and I'll update the spec.
+- **Backend:** a renamed GitHub call or a new one fails the full-stack smoke test (`it/GitHubStub` answers a fixed set and 404s the rest). `TestcontainersConfig` now forces the Gemini key empty and takes `--e2e.*-url` overrides.
+- **All (B39):** `.git/info/exclude` hides new files under any `prompts/` and every `README.md`. Before pushing, check `git ls-files --others --ignored --exclude-standard`.
 Status: open
 
 

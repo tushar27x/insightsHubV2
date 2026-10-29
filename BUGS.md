@@ -293,3 +293,17 @@ New bugs get the next `B` number. PR descriptions list the bugs found while buil
 - **Root cause:** the plan runs the sync on a UTC clock and the evaluation on each user's local clock; nothing ties the freshness of the data to the day being settled.
 - **Fix:** `HeroJob` first refreshes each due user's activity (`SyncService.refreshActivity`: the calendar from the day before the first due day, plus the branch scan in the user's zone; no AI and no cooldown), and settles only if that refresh succeeded. GitHub down: the days wait for the next hourly run. Token revoked: the hero waits until the user logs in again.
 - **Lesson:** when data is fetched on one clock and consumed on another, check its freshness at the moment of use, per time zone.
+
+### B38
+**`?mock_error` does nothing under `next dev`** · U1/U2 (mock mode) · Code · found by integration in I5
+- **Symptom:** `npm run dev` with `NEXT_PUBLIC_MOCK=1`, then `/home?mock_error=401` (or 404, 429): Home renders normally, with no "Session ended", NEW GAME or "road blocked" state. The same URLs work on a production build (`next build && next start`), which is what the I5 mock suite now runs on.
+- **Root cause:** `takeForcedError` (`web/lib/mock.ts`) fails only the first API call of the page load (`forcedErrorUsed`). In development, React StrictMode mounts every component twice, so the first fetch belongs to a query that is cancelled and fetched again. The forced error goes to the cancelled fetch, and the second one succeeds.
+- **Fix (ui):** count the forced error as used only once its response is delivered (skip it when `init.signal` is aborted), or fail the first call per endpoint. `docs/run-locally.md` advertises `?mock_error` for `npm run dev`, so that's where it has to work.
+- **Lesson:** dev-only tooling needs a test in the mode developers actually use; StrictMode's double mount defeats any "first call only" state kept at module level.
+
+### B39
+**Files under `prompts/` and every `README.md` are silently left out of commits** · Repo setup · Process · found by integration while reviewing #35
+- **Symptom:** #35's CI failed on `FileNotFoundException: prompts/digest-intro.st` although `./mvnw verify` passed locally and `git status` was clean. `docs/design/README.md` (the design index) and `web/README.md` were never committed either; #34 says "Web README updated", but the file isn't in its diff.
+- **Root cause:** the shared repository's `.git/info/exclude` (all worktrees use it) has unanchored `README.md` and `prompts/` lines under "Claude kit (local only)". They match `docs/design/README.md`, `web/README.md` and `src/main/resources/prompts/`. Files that were already tracked stay tracked; new ones never show up.
+- **Fix:** `git add -f` for the missing files (#35: `b418b0e`; I5 adds `docs/design/README.md`; `web/README.md` waits on the ui). The developer's call: anchor the two lines (`/README.md`, `/prompts/`) or remove them.
+- **Lesson:** a green local build doesn't prove that the commit is complete; CI on a clean checkout does. When a file "can't be found" only in CI, run `git ls-files --others --ignored --exclude-standard`.
