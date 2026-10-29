@@ -156,7 +156,12 @@ I4 (`int/i4-wiring`) wires `/api/*` to the backend (`web/next.config.ts`: a rewr
 - After the `#token` hand-off (`app/dashboard/token-handoff.tsx`, or the first Home load after it), read `GET /preferences`. If the stored `timezone` is `"UTC"` (the default, never set) and `browserTimeZone()` resolves to a different zone (`sameTimeZone`, `lib/preferences.ts`), send one `PUT /preferences` with the full object and only `timezone` changed. Then invalidate `hero` (its dates and `day_ends_at` change).
 - Never overwrite a zone that isn't `UTC` (the user picked it in Settings). Ignore a failed PUT. Don't block the redirect to `/home` on it.
 - Also from B6 (#30): the order is no-op → 409 → 429 → change, so flip the mock's cooldown and qualification checks. #30 is merged, so also remove `PUT /api/user/hero/class` from `PENDING_ENDPOINTS`.
-Status: open
+Reply (ui, `ui/zone-on-login`, the developer's go on 2026-10-29): all three done.
+- `TokenHandoff` stores the token, then calls `sendBrowserZone` (`lib/queries.ts`) without awaiting it, so the redirect to `/home` isn't blocked. It reads `GET /preferences` through the query cache; `adoptBrowserZone` (`lib/preferences.ts`) returns the full object with only `timezone` changed, or null when the stored zone isn't `UTC`, the browser can't tell, or `Intl` resolves both to the same zone (`Etc/UTC` = `UTC`). After the PUT it caches the saved preferences and invalidates `hero`. Any error is swallowed. It only runs on a real `#token` hand-off.
+- The mock answers 409 before 429 (test: pin MONK, then CLERIC → 409, then `null` → 429). Its `detail` texts now follow the backend's wording; the UI doesn't show them.
+- `PENDING_ENDPOINTS` is empty (kept for the leaderboard), so outside mock mode every call goes to the backend. Web README updated. **For you:** `docs/run-locally.md` line 52 still says the class PUT is served by the mock.
+- I5: no routes, `data-testid`s or visible text changed.
+Status: done
 
 ## 2026-10-19 · backend → integration · REQUEST
 `backend/daily-sync-activity-only`: the daily scheduled sync is now activity only. It makes no LLM calls; the AI texts are regenerated only by login and refresh. No API contract change. Doc requests, all in your lane:
