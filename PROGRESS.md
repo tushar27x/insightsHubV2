@@ -472,9 +472,22 @@ Keeping v1's response shape meant the v1 Next.js client could be pointed at v2. 
 8. Preferences API: `GET`/`PUT /api/user/preferences` (`timezone`, `rest_days`, `alerts_enabled`, `public_profile`) moves to B5 in Part D; the "N for no commits" preference is obsolete. Validate the input (Phase 9).
 
 **Done when**
-- [ ] One digest arrives with all pending alerts, and none is sent when there's nothing to report
-- [ ] The unsubscribe link turns alerts off
-- [ ] An AI outage still produces an email
+- [x] One digest arrives with all pending alerts, and none is sent when there's nothing to report
+- [x] The unsubscribe link turns alerts off
+- [x] An AI outage still produces an email
+
+**As built** (B7)
+- `notify/DigestJob`: `@Scheduled(cron = "${insightshub.digest.cron}", zone = "UTC")`, default `0 35 * * * *` (30 min after the hero job). Off unless `insightshub.digest.enabled` (`DIGEST_ENABLED`); enabled, it needs `spring.mail.host` (`MAIL_HOST`) and `insightshub.digest.from` (`DIGEST_FROM`) or startup fails. Off, the app boots without SMTP and logs "Digest disabled". Virtual threads, at most `concurrency` (4) users at once, each isolated; run summary `{sent, skipped, notDue, failed, aiCalls, aiFallbacks}`.
+- `notify/DigestPlan` (pure, tests first):
+  - **Due:** the user's local time is past `send-hour` (8), and no `SENT` digest yet on their local today. Yesterday settles by 06:00 local, so 08:00 sees it; events settled later that day wait for tomorrow (one email a day).
+  - **Notable:** `LIFE_LOST` with `lives == 1`, `LEVEL_DOWN`, `FAINTED`, `LEVEL_UP`. Only these trigger an email, and the email then covers every fresh unsent event (the rest as "Also" lines).
+  - **Skipped:** no notable event, alerts off, no email, or `needs_reauth` → the events are stamped with a `SKIPPED` digest and no email goes out, so nothing piles up (and turning alerts on later doesn't flood). Events more than 7 days old are always skipped.
+- **At-least-once:** send, then one transaction (`DigestWriter`) inserts the digest rows and stamps exactly the mailed ids (`WHERE digest_id IS NULL`). A failed send writes nothing and is retried next hour; a failed stamp after a send repeats the email next run. A repeated email beats a lost "1 heart left".
+- `V6__digests.sql`: `digests(id, user_id, status SENT|SKIPPED, channel, event_count, ai_intro, created_at)` with CHECKs (SENT ⇔ channel; an AI intro only on SENT), a partial index for the latest SENT per user, and the FK `hero_events.digest_id → digests.id`.
+- **Content:** `DigestContent` (pure) writes one line per event, the subject (from the latest notable event) and three static intros (good / setback / mixed). `DigestIntro` asks the LLM for a 2-sentence intro (fast tier, `prompts/digest-intro.st`, persona as system prompt, `task-timeout`, answers over 600 chars rejected), else the static one. LLM cost: at most one call per mailed user per day, plus one per hourly retry while their email fails.
+- **Email:** `NotificationChannel` (Strategy) → `EmailChannel`: Thymeleaf `templates/email/digest.html` (inline styles, Pixel Realm tokens) + a plain-text part; `List-Unsubscribe` + `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058). SMTP timeouts 10 s; mail health check off (an SMTP outage must not mark the app DOWN).
+- **Unsubscribe:** `GET /api/notifications/unsubscribe?token=` shows a confirm page and changes nothing (mail scanners prefetch links); `POST` (the button, and the one-click target) sets `alerts_enabled = false`, idempotent. Public, HTML pages, a bad token is a 400 page, policy `unsubscribe` 10/min per IP. `security/UnsubscribeTokens`: HS256 with a key derived from `JWT_SECRET` (HMAC-SHA256 of a fixed label), `aud = unsubscribe`, 1 year, `sub` = GitHub id; a login JWT and an unsubscribe token can't stand in for each other (tested both ways). Rotating `JWT_SECRET` invalidates mailed links; the Settings toggle still works.
+- Tests: `DigestPlanTest`, `DigestContentTest`, `UnsubscribeTokensTest`, `DigestServiceTest`, `DigestJobTest`, `DigestIntroTest`, `EmailChannelTest`, `UnsubscribeApiTest`; `it/DigestIT` (GreenMail in-process, the real AI layer offline → static intro, ids 9_000_6xx).
 
 ---
 
